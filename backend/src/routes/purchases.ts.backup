@@ -1,0 +1,548 @@
+import express, { Request, Response } from 'express';
+import { authenticate } from '../middleware/auth';
+import { query } from '../config/database';
+import { logger } from '../config/logger';
+
+const router = express.Router();
+
+// Get all purchases
+router.get('/', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { search, status, vendorId, startDate, endDate } = req.query;
+    
+    let queryText = `
+      SELECT p.id, p.purchase_number, p.vendor_id, p.purchase_date,
+             p.subtotal, p.tax_amount, p.total_amount, p.status, 
+             p.created_at, p.updated_at,
+             v.name as vendor_name, v.email as vendor_email,
+             (SELECT COUNT(*) FROM purchase_items pi WHERE pi.purchase_id = p.id) as items_count
+      FROM purchases p
+      LEFT JOIN vendors v ON p.vendor_id = v.id
+      WHERE 1=1
+    `;
+    const queryParams: any[] = [];
+    let paramCount = 0;
+
+    if (search) {
+      paramCount++;
+      queryText += ` AND (p.purchase_number ILIKE $${paramCount} OR v.name ILIKE $${paramCount})`;
+      queryParams.push(`%${search}%`);
+    }
+
+    if (status) {
+      paramCount++;
+      queryText += ` AND p.status = $${paramCount}`;
+      queryParams.push(status);
+    }
+
+    if (vendorId) {
+      paramCount++;
+      queryText += ` AND p.vendor_id = $${paramCount}`;
+      queryParams.push(vendorId);
+    }
+
+    if (startDate) {
+      paramCount++;
+      queryText += ` AND p.purchase_date >= $${paramCount}`;
+      queryParams.push(startDate);
+    }
+
+    if (endDate) {
+      paramCount++;
+      queryText += ` AND p.purchase_date <= $${paramCount}`;
+      queryParams.push(endDate);
+    }
+
+    queryText += ' ORDER BY p.created_at DESC';
+
+    const result = await query(queryText, queryParams);
+    
+    res.json({
+      success: true,
+      data: result.rows || [],
+      total: result.rowCount || 0,
+      pagination: {
+        total: result.rowCount || 0,
+        totalPages: Math.ceil((result.rowCount || 0) / 10),
+        currentPage: 1,
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching purchases:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'FETCH_PURCHASES_ERROR',
+        message: 'Failed to fetch purchases',
+      },
+    });
+  }
+});
+
+// Get purchase by ID with line items
+router.get('/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Get purchase details
+    const purchaseResult = await query(
+      `SELECT p.id, p.purchase_number, p.vendor_id, p.purchase_date,
+              p.subtotal, p.tax_amount, p.total_amount, p.status, 
+              p.notes, p.place_of_supply, p.eway_bill_number,
+              p.purchase_invoice_number, p.purchase_invoice_date,
+              p.terms_conditions, p.created_at, p.updated_at,
+              v.name as vendor_name, v.email as vendor_email, v.phone as vendor_phone,
+              v.address as vendor_address, v.gstin as vendor_gstin
+       FROM purchases p
+       LEFT JOIN vendors v ON p.vendor_id = v.id
+       WHERE p.id = ?`,
+      [id]
+    );
+
+    if (purchaseResult.rowCount === 0 || !purchaseResult.rows || purchaseResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'PURCHASE_NOT_FOUND',
+          message: 'Purchase not found',
+        },
+      });
+    }
+
+    // Get line items with all fields
+    const lineItemsResult = await query(
+      `SELECT pi.id, pi.item_id, pi.quantity, pi.unit_price, pi.tax_rate,
+              pi.discount_rate, pi.total_amount, pi.description, pi.hsn_sac,
+              i.sku, i.name as item_name, i.description as item_description, i.unit
+       FROM purchase_items pi
+       LEFT JOIN items i ON pi.item_id = i.id
+       WHERE pi.purchase_id = ?
+       ORDER BY pi.id`,
+      [id]
+    );
+
+    const purchase = {
+      ...purchaseResult.rows[0],
+      line_items: lineItemsResult.rows,
+    };
+
+    res.json({
+      success: true,
+      data: purchase,
+    });
+  } catch (error) {
+    logger.error('Error fetching purchase:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'FETCH_PURCHASE_ERROR',
+        message: 'Failed to fetch purchase',
+      },
+    });
+  }
+});
+
+// Create new purchase
+router.post('/', authenticate, async (req: Request, res: Response) => {
+  try {
+    const {
+      vendorId,
+      purchaseDate,
+      lineItems,
+      subtotal,
+      taxAmount,
+      totalAmount,
+      notes,
+      placeOfSupply,
+      eWayBillNumber,
+      purchaseInvoiceNumber,
+      purchaseInvoiceDate,
+      termsConditions,
+      status,
+    } = req.body;
+
+    logger.info('Creating purchase with data:', { vendorId, purchaseDate, lineItems, subtotal, taxAmount, totalAmount, placeOfSupply });
+
+    // Validate required fields
+    if (!vendorId || !purchaseDate || !lineItems || lineItems.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Vendor ID, purchase date, and line items are required',
+        },
+      });
+    }
+
+    // Verify vendor exists
+    const vendorCheck = await query('SELECT id FROM vendors WHERE id = ?', [vendorId]);
+    if (!vendorCheck.rows || vendorCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'VENDOR_NOT_FOUND',
+          message: 'Vendor not found',
+        },
+      });
+    }
+
+    // Generate purchase number - Simple and reliable approach
+    const countResult = await query('SELECT COUNT(*) as count FROM purchases');
+    const nextNumber = (countResult.rows[0].count || 0) + 1;
+    const purchaseNumber = `PUR-${String(nextNumber).padStart(4, '0')}`;
+
+    // Create purchase
+    const purchaseResult = await query(
+      `INSERT INTO purchases (purchase_number, vendor_id, purchase_date, 
+                             subtotal, tax_amount, total_amount, status, notes,
+                             place_of_supply, eway_bill_number, purchase_invoice_number,
+                             purchase_invoice_date, terms_conditions)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        purchaseNumber, 
+        vendorId, 
+        purchaseDate, 
+        subtotal || 0, 
+        taxAmount || 0, 
+        totalAmount || 0, 
+        status || 'pending', 
+        notes || '',
+        placeOfSupply || '',
+        eWayBillNumber || '',
+        purchaseInvoiceNumber || '',
+        purchaseInvoiceDate || null,
+        termsConditions || ''
+      ]
+    );
+
+    const purchaseId = purchaseResult.insertId;
+    logger.info('Purchase created with ID:', purchaseId);
+
+    // Create line items one by one for better error tracking
+    for (const item of lineItems) {
+      await query(
+        `INSERT INTO purchase_items (purchase_id, item_id, quantity, unit_price, 
+                                     tax_rate, discount_rate, total_amount, description, hsn_sac)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          purchaseId, 
+          item.itemId, 
+          item.quantity, 
+          item.unitCost || 0, 
+          item.taxRate || 18,
+          item.discount || 0,
+          item.total || 0,
+          item.description || '',
+          item.hsnSac || ''
+        ]
+      );
+    }
+
+    // Fetch the created purchase with details
+    const createdPurchase = await query(
+      `SELECT id, purchase_number, vendor_id, purchase_date,
+              subtotal, tax_amount, total_amount, status, 
+              created_at, updated_at
+       FROM purchases WHERE id = ?`,
+      [purchaseId]
+    );
+
+    // Fetch line items
+    const createdLineItems = await query(
+      `SELECT id, item_id, quantity, unit_price, total_amount
+       FROM purchase_items WHERE purchase_id = ?`,
+      [purchaseId]
+    );
+
+    const purchase = {
+      ...createdPurchase.rows[0],
+      line_items: createdLineItems.rows,
+    };
+
+    logger.info('Purchase created successfully:', purchase);
+
+    res.status(201).json({
+      success: true,
+      data: purchase,
+      message: 'Purchase created successfully',
+    });
+  } catch (error: any) {
+    logger.error('Error creating purchase:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'CREATE_PURCHASE_ERROR',
+        message: error.message || 'Failed to create purchase',
+        details: error.sqlMessage || error.toString(),
+      },
+    });
+  }
+});
+
+// Update purchase
+router.put('/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      vendorId,
+      purchaseDate,
+      subtotal,
+      taxAmount,
+      totalAmount,
+      status,
+      notes,
+      placeOfSupply,
+      eWayBillNumber,
+      purchaseInvoiceNumber,
+      purchaseInvoiceDate,
+      termsConditions,
+      lineItems,
+    } = req.body;
+
+    logger.info('Updating purchase:', { id, vendorId, lineItems: lineItems?.length });
+
+    // Check if purchase exists
+    const existingPurchase = await query('SELECT id, status FROM purchases WHERE id = ?', [id]);
+    if (!existingPurchase.rows || existingPurchase.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'PURCHASE_NOT_FOUND',
+          message: 'Purchase not found',
+        },
+      });
+    }
+
+    // Update purchase with all fields
+    await query(
+      `UPDATE purchases 
+       SET vendor_id = COALESCE(?, vendor_id),
+           purchase_date = COALESCE(?, purchase_date),
+           subtotal = COALESCE(?, subtotal),
+           tax_amount = COALESCE(?, tax_amount),
+           total_amount = COALESCE(?, total_amount),
+           status = COALESCE(?, status),
+           notes = COALESCE(?, notes),
+           place_of_supply = COALESCE(?, place_of_supply),
+           eway_bill_number = COALESCE(?, eway_bill_number),
+           purchase_invoice_number = COALESCE(?, purchase_invoice_number),
+           purchase_invoice_date = COALESCE(?, purchase_invoice_date),
+           terms_conditions = COALESCE(?, terms_conditions),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [vendorId, purchaseDate, subtotal, taxAmount, totalAmount, status, notes,
+       placeOfSupply, eWayBillNumber, purchaseInvoiceNumber, purchaseInvoiceDate,
+       termsConditions, id]
+    );
+
+    // Update line items if provided
+    if (lineItems && Array.isArray(lineItems)) {
+      // Delete existing line items
+      await query('DELETE FROM purchase_items WHERE purchase_id = ?', [id]);
+      
+      // Insert new line items
+      for (const item of lineItems) {
+        await query(
+          `INSERT INTO purchase_items (purchase_id, item_id, quantity, unit_price, 
+                                       tax_rate, discount_rate, total_amount, description, hsn_sac)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            item.itemId,
+            item.quantity,
+            item.unitCost || 0,
+            item.taxRate || 18,
+            item.discount || 0,
+            item.total || 0,
+            item.description || '',
+            item.hsnSac || ''
+          ]
+        );
+      }
+    }
+
+    // Fetch updated purchase
+    const result = await query(
+      `SELECT id, purchase_number, vendor_id, purchase_date,
+              subtotal, tax_amount, total_amount, status, 
+              created_at, updated_at
+       FROM purchases WHERE id = ?`,
+      [id]
+    );
+
+    logger.info('Purchase updated successfully');
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: 'Purchase updated successfully',
+    });
+  } catch (error: any) {
+    logger.error('Error updating purchase:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'UPDATE_PURCHASE_ERROR',
+        message: 'Failed to update purchase',
+      },
+    });
+  }
+});
+
+// Update purchase status and receive items
+router.patch('/:id/receive', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { receivedItems } = req.body; // Array of { itemId, receivedQuantity }
+
+    // Get purchase details
+    const purchaseResult = await query('SELECT id, status FROM purchases WHERE id = ?', [id]);
+    if (purchaseResult.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'PURCHASE_NOT_FOUND',
+          message: 'Purchase not found',
+        },
+      });
+    }
+
+    if (purchaseResult.rows[0].status === 'delivered') {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: 'ALREADY_DELIVERED',
+          message: 'Purchase already marked as delivered',
+        },
+      });
+    }
+
+    // Get line items
+    const lineItemsResult = await query(
+      'SELECT item_id, quantity FROM purchase_items WHERE purchase_id = ?',
+      [id]
+    );
+
+    // Update item stock levels
+    for (const receivedItem of receivedItems) {
+      const lineItem = lineItemsResult.rows.find((li: any) => li.item_id === receivedItem.itemId);
+      if (lineItem) {
+        await query(
+          'UPDATE items SET current_stock = current_stock + ? WHERE id = ?',
+          [receivedItem.receivedQuantity, receivedItem.itemId]
+        );
+      }
+    }
+
+    // Update purchase status
+    await query(
+      `UPDATE purchases 
+       SET status = 'delivered', updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [id]
+    );
+
+    // Fetch updated purchase
+    const result = await query(
+      `SELECT id, purchase_number, status, updated_at
+       FROM purchases WHERE id = ?`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: 'Purchase marked as delivered and stock updated',
+    });
+  } catch (error) {
+    logger.error('Error receiving purchase:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'RECEIVE_PURCHASE_ERROR',
+        message: 'Failed to receive purchase',
+      },
+    });
+  }
+});
+
+// Delete purchase
+router.delete('/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Check if purchase exists
+    const existingPurchase = await query('SELECT id, status FROM purchases WHERE id = ?', [id]);
+    if (existingPurchase.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'PURCHASE_NOT_FOUND',
+          message: 'Purchase not found',
+        },
+      });
+    }
+
+    if (existingPurchase.rows[0].status === 'delivered') {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: 'PURCHASE_DELIVERED',
+          message: 'Cannot delete delivered purchases',
+        },
+      });
+    }
+
+    // Delete line items first
+    await query('DELETE FROM purchase_items WHERE purchase_id = ?', [id]);
+    
+    // Delete purchase
+    await query('DELETE FROM purchases WHERE id = ?', [id]);
+
+    res.json({
+      success: true,
+      message: 'Purchase deleted successfully',
+    });
+  } catch (error) {
+    logger.error('Error deleting purchase:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'DELETE_PURCHASE_ERROR',
+        message: 'Failed to delete purchase',
+      },
+    });
+  }
+});
+
+// Get pending purchases
+router.get('/alerts/pending', authenticate, async (req: Request, res: Response) => {
+  try {
+    const result = await query(
+      `SELECT p.id, p.purchase_number, p.vendor_id, p.purchase_date, p.total_amount,
+              v.name as vendor_name, v.email as vendor_email,
+              (CURRENT_DATE - p.purchase_date) as days_pending
+       FROM purchases p
+       LEFT JOIN vendors v ON p.vendor_id = v.id
+       WHERE p.status = 'pending'
+       ORDER BY p.purchase_date ASC`
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+      total: result.rowCount,
+    });
+  } catch (error) {
+    logger.error('Error fetching pending purchases:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'FETCH_PENDING_ERROR',
+        message: 'Failed to fetch pending purchases',
+      },
+    });
+  }
+});
+
+export default router;

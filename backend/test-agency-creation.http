@@ -1,0 +1,172 @@
+### Test Agency Creation System
+### Use this file with REST Client extension in VS Code or any HTTP client
+
+### Variables
+@baseUrl = http://localhost:5000/api/v1
+@adminEmail = admin@system.com
+@adminPassword = admin123
+
+### 1. Login as System Admin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Save the token from response and use it below
+### Replace <ADMIN_TOKEN> with actual token
+
+### 2. Create Agency 1 - Acme Corporation
+POST {{baseUrl}}/agencies
+Authorization: Bearer <ADMIN_TOKEN>
+Content-Type: application/json
+
+{
+  "companyName": "Acme Corporation",
+  "email": "admin@acme.com",
+  "password": "acme123",
+  "phone": "9876543210",
+  "address": "123 Business Street, City",
+  "gstNumber": "06AAAAA0000A1Z5",
+  "panNumber": "AAAAA0000A",
+  "userName": "Acme Admin"
+}
+
+### 3. Create Agency 2 - XYZ Industries
+POST {{baseUrl}}/agencies
+Authorization: Bearer <ADMIN_TOKEN>
+Content-Type: application/json
+
+{
+  "companyName": "XYZ Industries",
+  "email": "admin@xyz.com",
+  "password": "xyz123",
+  "phone": "9876543211",
+  "address": "456 Industrial Ave, City",
+  "gstNumber": "06BBBBB1111B2Z6",
+  "panNumber": "BBBBB1111B",
+  "userName": "XYZ Admin"
+}
+
+### 4. Create Agency 3 - Tech Solutions
+POST {{baseUrl}}/agencies
+Authorization: Bearer <ADMIN_TOKEN>
+Content-Type: application/json
+
+{
+  "companyName": "Tech Solutions",
+  "email": "admin@techsolutions.com",
+  "password": "tech123",
+  "phone": "9876543212",
+  "address": "789 Tech Park, City",
+  "gstNumber": "06CCCCC2222C3Z7",
+  "panNumber": "CCCCC2222C",
+  "userName": "Tech Admin"
+}
+
+### 5. Get All Agencies
+GET {{baseUrl}}/agencies
+Authorization: Bearer <ADMIN_TOKEN>
+
+### 6. Get Agency by ID
+GET {{baseUrl}}/agencies/1
+Authorization: Bearer <ADMIN_TOKEN>
+
+### 7. Update Agency
+PUT {{baseUrl}}/agencies/1
+Authorization: Bearer <ADMIN_TOKEN>
+Content-Type: application/json
+
+{
+  "companyName": "Acme Corporation Updated",
+  "phone": "9876543299"
+}
+
+### 8. Update Agency Status
+PATCH {{baseUrl}}/agencies/1/status
+Authorization: Bearer <ADMIN_TOKEN>
+Content-Type: application/json
+
+{
+  "status": "active"
+}
+
+### 9. Login as Agency 1 Admin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@acme.com",
+  "password": "acme123"
+}
+
+### Save the token from response
+### Replace <AGENCY1_TOKEN> with actual token
+
+### 10. Create Customer in Agency 1 Database
+POST {{baseUrl}}/customers
+Authorization: Bearer <AGENCY1_TOKEN>
+Content-Type: application/json
+
+{
+  "fname": "John",
+  "lname": "Doe",
+  "company_name": "Doe Enterprises",
+  "cdisplay_name": "Doe Enterprises",
+  "customer_email": "john@doe.com",
+  "cmobile_phone": "9876543210"
+}
+
+### 11. Get Customers from Agency 1 Database
+GET {{baseUrl}}/customers
+Authorization: Bearer <AGENCY1_TOKEN>
+
+### 12. Login as Agency 2 Admin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@xyz.com",
+  "password": "xyz123"
+}
+
+### Save the token from response
+### Replace <AGENCY2_TOKEN> with actual token
+
+### 13. Create Customer in Agency 2 Database
+POST {{baseUrl}}/customers
+Authorization: Bearer <AGENCY2_TOKEN>
+Content-Type: application/json
+
+{
+  "fname": "Jane",
+  "lname": "Smith",
+  "company_name": "Smith Industries",
+  "cdisplay_name": "Smith Industries",
+  "customer_email": "jane@smith.com",
+  "cmobile_phone": "9876543211"
+}
+
+### 14. Get Customers from Agency 2 Database
+### Should only see Jane Smith, NOT John Doe
+GET {{baseUrl}}/customers
+Authorization: Bearer <AGENCY2_TOKEN>
+
+### 15. Verify Data Isolation
+### Login back as Agency 1 and check customers
+### Should only see John Doe, NOT Jane Smith
+GET {{baseUrl}}/customers
+Authorization: Bearer <AGENCY1_TOKEN>
+
+### 16. Delete Agency (Soft Delete)
+DELETE {{baseUrl}}/agencies/3
+Authorization: Bearer <ADMIN_TOKEN>
+
+### Success! You've tested:
+### ✅ Agency creation with automatic database setup
+### ✅ Multiple agencies with separate databases
+### ✅ Data isolation between agencies
+### ✅ CRUD operations per agency
+### ✅ Agency management by system admin

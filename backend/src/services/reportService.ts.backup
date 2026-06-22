@@ -1,0 +1,304 @@
+﻿import { query } from '../config/database';
+import { SalesReport, ReceivablesReport, ExpenseReport, DashboardMetrics } from '../types';
+
+export class ReportService {
+  // Dashboard Metrics
+  static async getDashboardMetrics(): Promise<DashboardMetrics> {
+    const customerResult = await query(`SELECT COUNT(*) as total_customers, COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_customers FROM customers`);
+    const itemResult = await query(`SELECT COUNT(*) as total_items, COUNT(CASE WHEN current_stock <= reorder_level THEN 1 END) as low_stock_items FROM items WHERE is_active = 1`);
+    const invoiceResult = await query(`SELECT COUNT(*) as total_invoices, COUNT(CASE WHEN status = 'paid' THEN 1 END) as paid_invoices, COUNT(CASE WHEN status = 'overdue' THEN 1 END) as overdue_invoices, COALESCE(SUM(total_amount), 0) as total_sales, COALESCE(SUM(total_amount - paid_amount), 0) as total_receivables FROM invoices WHERE status != 'cancelled'`);
+    const expenseResult = await query(`SELECT COALESCE(SUM(amount), 0) as total_expenses FROM expenses WHERE expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`);
+    const activitiesResult = await query(`(SELECT 'invoice' as type, CONCAT('Invoice ', invoice_number, ' created') as description, created_at as timestamp FROM invoices ORDER BY created_at DESC LIMIT 5) UNION ALL (SELECT 'payment' as type, CONCAT('Payment received') as description, created_at as timestamp FROM payments ORDER BY created_at DESC LIMIT 5) ORDER BY timestamp DESC LIMIT 10`);
+    
+    return {
+      totalCustomers: parseInt(customerResult[0].total_customers),
+      activeCustomers: parseInt(customerResult[0].active_customers),
+      totalItems: parseInt(itemResult[0].total_items),
+      lowStockItems: parseInt(itemResult[0].low_stock_items),
+      totalInvoices: parseInt(invoiceResult[0].total_invoices),
+      paidInvoices: parseInt(invoiceResult[0].paid_invoices),
+      overdueInvoices: parseInt(invoiceResult[0].overdue_invoices),
+      totalSales: parseFloat(invoiceResult[0].total_sales),
+      totalReceivables: parseFloat(invoiceResult[0].total_receivables),
+      totalExpenses: parseFloat(expenseResult[0].total_expenses),
+      recentActivities: activitiesResult.map((row: any) => ({ type: row.type, description: row.description, timestamp: row.timestamp }))
+    };
+  }
+
+  // Sales Reports
+  static async getSalesReport(fromDate?: Date, toDate?: Date, customerId?: string): Promise<SalesReport> {
+    const params: any[] = [];
+    let whereClause = `WHERE i.status != 'cancelled'`;
+    if (fromDate) { whereClause += ` AND i.issue_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND i.issue_date <= ?`; params.push(toDate); }
+    if (customerId) { whereClause += ` AND i.customer_id = ?`; params.push(customerId); }
+    
+    const salesResult = await query(`SELECT COALESCE(SUM(total_amount), 0) as total_sales, COUNT(*) as total_invoices, COALESCE(AVG(total_amount), 0) as average_invoice_value FROM invoices i ${whereClause}`, params);
+    const topCustomersResult = await query(`SELECT c.id as customer_id, c.name as customer_name, COALESCE(SUM(i.total_amount), 0) as total_sales, COUNT(i.id) as invoice_count FROM customers c JOIN invoices i ON c.id = i.customer_id ${whereClause} GROUP BY c.id, c.name ORDER BY total_sales DESC LIMIT 10`, params);
+    const salesByMonthResult = await query(`SELECT DATE_FORMAT(i.issue_date, '%Y-%m') as month, COALESCE(SUM(i.total_amount), 0) as sales, COUNT(i.id) as invoices FROM invoices i WHERE i.status != 'cancelled' AND i.issue_date >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH) GROUP BY DATE_FORMAT(i.issue_date, '%Y-%m') ORDER BY month`);
+    
+    return {
+      totalSales: parseFloat(salesResult[0].total_sales),
+      totalInvoices: parseInt(salesResult[0].total_invoices),
+      averageInvoiceValue: parseFloat(salesResult[0].average_invoice_value),
+      topCustomers: topCustomersResult.map((row: any) => ({ customerId: row.customer_id, customerName: row.customer_name, totalSales: parseFloat(row.total_sales), invoiceCount: parseInt(row.invoice_count) })),
+      salesByMonth: salesByMonthResult.map((row: any) => ({ month: row.month, sales: parseFloat(row.sales), invoices: parseInt(row.invoices) }))
+    };
+  }
+
+  static async getSalesByCustomer(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE i.status != 'cancelled'`;
+    if (fromDate) { whereClause += ` AND i.issue_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND i.issue_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT c.name, COUNT(i.id) as invoice_count, COALESCE(SUM(i.total_amount), 0) as sales, COALESCE(SUM(i.total_amount - i.paid_amount), 0) as sale_with_tax FROM customers c LEFT JOIN invoices i ON c.id = i.customer_id ${whereClause} GROUP BY c.id, c.name ORDER BY sales DESC`, params);
+    return result;
+  }
+
+  static async getSalesByItem(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE i.status != 'cancelled'`;
+    if (fromDate) { whereClause += ` AND i.issue_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND i.issue_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT it.name, it.sku, COUNT(DISTINCT i.id) as invoice_count, COALESCE(SUM(ii.quantity), 0) as quantity_sold, COALESCE(SUM(ii.total), 0) as sales FROM items it LEFT JOIN invoice_items ii ON it.id = ii.item_id LEFT JOIN invoices i ON ii.invoice_id = i.id ${whereClause} GROUP BY it.id, it.name, it.sku ORDER BY sales DESC`, params);
+    return result;
+  }
+
+  static async getSalesBySalesperson(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE i.status != 'cancelled'`;
+    if (fromDate) { whereClause += ` AND i.issue_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND i.issue_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT u.username as salesperson, COUNT(i.id) as invoice_count, COALESCE(SUM(i.total_amount), 0) as sales FROM users u LEFT JOIN invoices i ON u.id = i.created_by ${whereClause} GROUP BY u.id, u.username ORDER BY sales DESC`, params);
+    return result;
+  }
+
+  // Receivables Reports
+  static async getReceivablesReport(): Promise<ReceivablesReport> {
+    const receivablesResult = await query(`SELECT COALESCE(SUM(total_amount - paid_amount), 0) as total_receivables, COALESCE(SUM(CASE WHEN due_date < CURDATE() THEN total_amount - paid_amount ELSE 0 END), 0) as overdue_amount, COALESCE(SUM(CASE WHEN due_date >= CURDATE() THEN total_amount - paid_amount ELSE 0 END), 0) as current_amount FROM invoices WHERE status IN ('sent', 'overdue') AND total_amount > paid_amount`);
+    const agingResult = await query(`SELECT CASE WHEN due_date >= CURDATE() THEN 'Current' WHEN due_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN '1-30 days' WHEN due_date >= DATE_SUB(CURDATE(), INTERVAL 60 DAY) THEN '31-60 days' WHEN due_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) THEN '61-90 days' ELSE '90+ days' END as age_range, COALESCE(SUM(total_amount - paid_amount), 0) as amount, COUNT(*) as count FROM invoices WHERE status IN ('sent', 'overdue') AND total_amount > paid_amount GROUP BY age_range ORDER BY CASE WHEN due_date >= CURDATE() THEN 1 WHEN due_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 2 WHEN due_date >= DATE_SUB(CURDATE(), INTERVAL 60 DAY) THEN 3 WHEN due_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) THEN 4 ELSE 5 END`);
+    const topDebtorsResult = await query(`SELECT c.id as customer_id, c.name as customer_name, COALESCE(SUM(i.total_amount - i.paid_amount), 0) as amount, COALESCE(SUM(CASE WHEN i.due_date < CURDATE() THEN i.total_amount - i.paid_amount ELSE 0 END), 0) as overdue_amount FROM customers c JOIN invoices i ON c.id = i.customer_id WHERE i.status IN ('sent', 'overdue') AND i.total_amount > i.paid_amount GROUP BY c.id, c.name HAVING SUM(i.total_amount - i.paid_amount) > 0 ORDER BY amount DESC LIMIT 10`);
+    
+    return {
+      totalReceivables: parseFloat(receivablesResult[0].total_receivables),
+      overdueAmount: parseFloat(receivablesResult[0].overdue_amount),
+      currentAmount: parseFloat(receivablesResult[0].current_amount),
+      agingBuckets: agingResult.map((row: any) => ({ range: row.range, amount: parseFloat(row.amount), count: parseInt(row.count) })),
+      topDebtors: topDebtorsResult.map((row: any) => ({ customerId: row.customer_id, customerName: row.customer_name, amount: parseFloat(row.amount), overdueAmount: parseFloat(row.overdue_amount) }))
+    };
+  }
+
+  static async getCustomerBalances() {
+    const result = await query(`SELECT c.name, COALESCE(SUM(i.total_amount - i.paid_amount), 0) as balance FROM customers c LEFT JOIN invoices i ON c.id = i.customer_id WHERE i.status IN ('sent', 'overdue') GROUP BY c.id, c.name HAVING balance > 0 ORDER BY balance DESC`);
+    return result;
+  }
+
+  static async getAgingSummary() {
+    const result = await query(`SELECT CASE WHEN due_date >= CURDATE() THEN 'Current' WHEN due_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN '1-30 days' WHEN due_date >= DATE_SUB(CURDATE(), INTERVAL 60 DAY) THEN '31-60 days' WHEN due_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) THEN '61-90 days' ELSE '90+ days' END as age_range, COUNT(*) as invoice_count, COALESCE(SUM(total_amount - paid_amount), 0) as amount FROM invoices WHERE status IN ('sent', 'overdue') AND total_amount > paid_amount GROUP BY age_range`);
+    return result;
+  }
+
+  static async getAgingDetails() {
+    const result = await query(`SELECT c.name as customer, i.invoice_number, i.issue_date, i.due_date, i.total_amount, i.paid_amount, (i.total_amount - i.paid_amount) as balance, DATEDIFF(CURDATE(), i.due_date) as days_overdue FROM invoices i JOIN customers c ON i.customer_id = c.id WHERE i.status IN ('sent', 'overdue') AND i.total_amount > i.paid_amount ORDER BY days_overdue DESC`);
+    return result;
+  }
+
+  static async getInvoiceDetails(fromDate?: Date, toDate?: Date, status?: string) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (fromDate) { whereClause += ` AND i.issue_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND i.issue_date <= ?`; params.push(toDate); }
+    if (status) { whereClause += ` AND i.status = ?`; params.push(status); }
+    const result = await query(`SELECT i.invoice_number, c.name as customer, i.issue_date, i.due_date, i.status, i.total_amount, i.paid_amount, (i.total_amount - i.paid_amount) as balance FROM invoices i JOIN customers c ON i.customer_id = c.id ${whereClause} ORDER BY i.issue_date DESC`, params);
+    return result;
+  }
+
+  // Payment Reports
+  static async getPaymentsReceived(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (fromDate) { whereClause += ` AND p.payment_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND p.payment_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT p.payment_date, c.name as customer, i.invoice_number, p.amount, p.payment_method FROM payments p JOIN invoices i ON p.invoice_id = i.id JOIN customers c ON i.customer_id = c.id ${whereClause} ORDER BY p.payment_date DESC`, params);
+    return result;
+  }
+
+  static async getWithholdingTax(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE p.tds_amount > 0`;
+    if (fromDate) { whereClause += ` AND p.payment_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND p.payment_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT p.payment_date, c.name as customer, p.amount, p.tds_amount, p.tds_percentage FROM payments p JOIN invoices i ON p.invoice_id = i.id JOIN customers c ON i.customer_id = c.id ${whereClause} ORDER BY p.payment_date DESC`, params);
+    return result;
+  }
+
+  // Expense Reports
+  static async getExpenseReport(fromDate?: Date, toDate?: Date, category?: string): Promise<ExpenseReport> {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (fromDate) { whereClause += ` AND expense_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND expense_date <= ?`; params.push(toDate); }
+    if (category) { whereClause += ` AND category = ?`; params.push(category); }
+    
+    const expenseResult = await query(`SELECT COALESCE(SUM(amount), 0) as total_expenses, COALESCE(SUM(CASE WHEN is_billable = 1 THEN amount ELSE 0 END), 0) as billable_expenses, COALESCE(SUM(CASE WHEN is_billable = 0 THEN amount ELSE 0 END), 0) as non_billable_expenses FROM expenses ${whereClause}`, params);
+    const categoryResult = await query(`SELECT category, COALESCE(SUM(amount), 0) as amount, COUNT(*) as count FROM expenses ${whereClause} GROUP BY category ORDER BY amount DESC`, params);
+    const monthlyResult = await query(`SELECT DATE_FORMAT(expense_date, '%Y-%m') as month, COALESCE(SUM(amount), 0) as amount, COUNT(*) as count FROM expenses WHERE expense_date >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH) GROUP BY DATE_FORMAT(expense_date, '%Y-%m') ORDER BY month`);
+    
+    return {
+      totalExpenses: parseFloat(expenseResult[0].total_expenses),
+      billableExpenses: parseFloat(expenseResult[0].billable_expenses),
+      nonBillableExpenses: parseFloat(expenseResult[0].non_billable_expenses),
+      expensesByCategory: categoryResult.map((row: any) => ({ category: row.category, amount: parseFloat(row.amount), count: parseInt(row.count) })),
+      expensesByMonth: monthlyResult.map((row: any) => ({ month: row.month, amount: parseFloat(row.amount), count: parseInt(row.count) }))
+    };
+  }
+
+  static async getExpenseDetails(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (fromDate) { whereClause += ` AND expense_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND expense_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT expense_date, category, description, amount, payment_method, vendor_name FROM expenses ${whereClause} ORDER BY expense_date DESC`, params);
+    return result;
+  }
+
+  static async getExpensesByCategory(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (fromDate) { whereClause += ` AND expense_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND expense_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT category, COUNT(*) as count, COALESCE(SUM(amount), 0) as total_amount, COALESCE(AVG(amount), 0) as avg_amount FROM expenses ${whereClause} GROUP BY category ORDER BY total_amount DESC`, params);
+    return result;
+  }
+
+  static async getExpensesByCustomer(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE e.customer_id IS NOT NULL`;
+    if (fromDate) { whereClause += ` AND e.expense_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND e.expense_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT c.name as customer, COUNT(e.id) as expense_count, COALESCE(SUM(e.amount), 0) as total_amount FROM expenses e JOIN customers c ON e.customer_id = c.id ${whereClause} GROUP BY c.id, c.name ORDER BY total_amount DESC`, params);
+    return result;
+  }
+
+  // Inventory Reports
+  static async getInventorySummary() {
+    const result = await query(`SELECT name, sku, current_stock, reorder_level, unit_price, (current_stock * unit_price) as stock_value, CASE WHEN current_stock <= reorder_level THEN 'Low Stock' WHEN current_stock = 0 THEN 'Out of Stock' ELSE 'In Stock' END as status FROM items WHERE is_active = 1 ORDER BY stock_value DESC`);
+    return result;
+  }
+
+  static async getInventoryValuation() {
+    const result = await query(`SELECT SUM(current_stock * unit_price) as total_value, SUM(current_stock) as total_quantity, COUNT(*) as total_items FROM items WHERE is_active = 1`);
+    return result;
+  }
+
+  static async getStockSummary() {
+    const result = await query(`SELECT name, sku, current_stock, reorder_level, (current_stock - reorder_level) as stock_difference FROM items WHERE is_active = 1 ORDER BY stock_difference ASC`);
+    return result;
+  }
+
+  static async getProductSales(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE i.status != 'cancelled'`;
+    if (fromDate) { whereClause += ` AND i.issue_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND i.issue_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT it.name, it.sku, COALESCE(SUM(ii.quantity), 0) as quantity_sold, COALESCE(SUM(ii.total), 0) as revenue FROM items it LEFT JOIN invoice_items ii ON it.id = ii.item_id LEFT JOIN invoices i ON ii.invoice_id = i.id ${whereClause} GROUP BY it.id, it.name, it.sku ORDER BY revenue DESC`, params);
+    return result;
+  }
+
+  // Financial Reports
+  static async getProfitLoss(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = ``;
+    if (fromDate && toDate) {
+      whereClause = `WHERE issue_date BETWEEN ? AND ?`;
+      params.push(fromDate, toDate);
+    }
+    const revenue = await query(`SELECT COALESCE(SUM(total_amount), 0) as total FROM invoices ${whereClause} AND status != 'cancelled'`, params);
+    const expenses = await query(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses ${whereClause}`, params);
+    return { revenue: parseFloat(revenue[0].total), expenses: parseFloat(expenses[0].total), profit: parseFloat(revenue[0].total) - parseFloat(expenses[0].total) };
+  }
+
+  static async getBalanceSheet(asOfDate?: Date) {
+    const result = await query(`SELECT 'Assets' as category, COALESCE(SUM(total_amount - paid_amount), 0) as amount FROM invoices WHERE status IN ('sent', 'overdue') UNION ALL SELECT 'Liabilities', COALESCE(SUM(total_amount - paid_amount), 0) FROM purchases WHERE status IN ('pending', 'partial')`);
+    return result;
+  }
+
+  static async getCashFlow(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (fromDate) { whereClause += ` AND payment_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND payment_date <= ?`; params.push(toDate); }
+    const inflow = await query(`SELECT COALESCE(SUM(amount), 0) as total FROM payments ${whereClause}`, params);
+    const outflow = await query(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses ${whereClause}`, params);
+    return { inflow: parseFloat(inflow[0].total), outflow: parseFloat(outflow[0].total), net: parseFloat(inflow[0].total) - parseFloat(outflow[0].total) };
+  }
+
+  static async getTrialBalance(asOfDate?: Date) {
+    const result = await query(`SELECT 'Receivables' as account, COALESCE(SUM(total_amount - paid_amount), 0) as debit, 0 as credit FROM invoices WHERE status IN ('sent', 'overdue') UNION ALL SELECT 'Payables', 0, COALESCE(SUM(total_amount - paid_amount), 0) FROM purchases WHERE status IN ('pending', 'partial')`);
+    return result;
+  }
+
+  // Tax Reports
+  static async getGSTSummary(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (fromDate) { whereClause += ` AND issue_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND issue_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT COALESCE(SUM(tax_amount), 0) as total_gst, COALESCE(SUM(cgst_amount), 0) as cgst, COALESCE(SUM(sgst_amount), 0) as sgst, COALESCE(SUM(igst_amount), 0) as igst FROM invoices ${whereClause}`, params);
+    return result;
+  }
+
+  static async getGSTR1(month?: number, year?: number) {
+    const result = await query(`SELECT invoice_number, issue_date, c.name as customer, c.gstin, total_amount, tax_amount FROM invoices i JOIN customers c ON i.customer_id = c.id WHERE MONTH(issue_date) = ? AND YEAR(issue_date) = ? ORDER BY issue_date`, [month || new Date().getMonth() + 1, year || new Date().getFullYear()]);
+    return result;
+  }
+
+  static async getGSTR2(month?: number, year?: number) {
+    const result = await query(`SELECT purchase_number, purchase_date, v.name as vendor, v.gstin, total_amount, tax_amount FROM purchases p JOIN vendors v ON p.vendor_id = v.id WHERE MONTH(purchase_date) = ? AND YEAR(purchase_date) = ? ORDER BY purchase_date`, [month || new Date().getMonth() + 1, year || new Date().getFullYear()]);
+    return result;
+  }
+
+  static async getGSTR3B(month?: number, year?: number) {
+    const sales = await query(`SELECT COALESCE(SUM(total_amount), 0) as total, COALESCE(SUM(tax_amount), 0) as tax FROM invoices WHERE MONTH(issue_date) = ? AND YEAR(issue_date) = ?`, [month || new Date().getMonth() + 1, year || new Date().getFullYear()]);
+    const purchases = await query(`SELECT COALESCE(SUM(total_amount), 0) as total, COALESCE(SUM(tax_amount), 0) as tax FROM purchases WHERE MONTH(purchase_date) = ? AND YEAR(purchase_date) = ?`, [month || new Date().getMonth() + 1, year || new Date().getFullYear()]);
+    return { outward_supplies: sales[0], inward_supplies: purchases[0], net_tax: parseFloat(sales[0].tax) - parseFloat(purchases[0].tax) };
+  }
+
+  static async getTaxSummary(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (fromDate) { whereClause += ` AND issue_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND issue_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT DATE_FORMAT(issue_date, '%Y-%m') as month, COALESCE(SUM(tax_amount), 0) as total_tax, COALESCE(SUM(cgst_amount), 0) as cgst, COALESCE(SUM(sgst_amount), 0) as sgst, COALESCE(SUM(igst_amount), 0) as igst FROM invoices ${whereClause} GROUP BY month ORDER BY month`, params);
+    return result;
+  }
+
+  // Vendor Reports
+  static async getVendorBalances() {
+    const result = await query(`SELECT v.name, COALESCE(SUM(p.total_amount - p.paid_amount), 0) as balance FROM vendors v LEFT JOIN purchases p ON v.id = p.vendor_id WHERE p.status IN ('pending', 'partial') GROUP BY v.id, v.name HAVING balance > 0 ORDER BY balance DESC`);
+    return result;
+  }
+
+  static async getVendorCredits() {
+    const result = await query(`SELECT v.name, COALESCE(SUM(credit_amount), 0) as credit FROM vendors v LEFT JOIN vendor_credits vc ON v.id = vc.vendor_id GROUP BY v.id, v.name HAVING credit > 0 ORDER BY credit DESC`);
+    return result;
+  }
+
+  static async getPurchaseByVendor(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (fromDate) { whereClause += ` AND p.purchase_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND p.purchase_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT v.name, COUNT(p.id) as purchase_count, COALESCE(SUM(p.total_amount), 0) as total_purchases FROM vendors v LEFT JOIN purchases p ON v.id = p.vendor_id ${whereClause} GROUP BY v.id, v.name ORDER BY total_purchases DESC`, params);
+    return result;
+  }
+
+  static async getVendorPayments(fromDate?: Date, toDate?: Date) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (fromDate) { whereClause += ` AND vp.payment_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND vp.payment_date <= ?`; params.push(toDate); }
+    const result = await query(`SELECT vp.payment_date, v.name as vendor, p.purchase_number, vp.amount, vp.payment_method FROM vendor_payments vp JOIN purchases p ON vp.purchase_id = p.id JOIN vendors v ON p.vendor_id = v.id ${whereClause} ORDER BY vp.payment_date DESC`, params);
+    return result;
+  }
+}

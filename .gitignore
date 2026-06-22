@@ -1,0 +1,55 @@
+# Python/Graphify local tooling
+/tools/graphify/.venv/
+__pycache__/
+*.pyc
+
+# Graphify local-only files (graphify-out/ itself is often committed)
+graphify-out/manifest.json
+graphify-out/cost.json
+
+# Environment variables — NEVER commit these (contain secrets)
+.env
+.env.local
+.env.production
+backend/.env
+frontend/.env
+
+# Common Node artifacts
+node_modules/
+dist/
+build/
+coverage/
+
+# Logs
+logs/
+backend/logs/
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# Root-level sensitive/temp files
+migrate-to-supabase.js
+fix-column-names.js
+check-supabase-counts.js
+user_check_output.txt
+user_debug.json
+user_details.txt
+user_details_v2.txt
+debug-frontend.ps1
+debug-server.js
+test-*.ps1
+test-*.html
+CHECK_PORT_5000.cmd
+RESTART_WITH_CORS_FIX.cmd
+rebuild-backend.ps1
+restart-frontend.ps1
+install-logo-feature.ps1
+*.png
+*.jpg
+
+# Backend migration scripts (contain DB credentials)
+backend/migrate-to-supabase.js
+backend/fix-column-names.js
+backend/check-supabase-counts.js

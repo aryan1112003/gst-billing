@@ -1,0 +1,219 @@
+import express, { Request, Response } from 'express';
+import { authenticate, authorize } from '../middleware/auth';
+import { query } from '../config/database';
+import { logger } from '../config/logger';
+import { asyncHandler, createError } from '../middleware/errorHandler';
+
+const router = express.Router();
+
+// Get all payments
+router.get('/', authenticate, asyncHandler(async (req: Request, res: Response) => {
+  const { search, customer_id, payment_method, start_date, end_date, page = 1, limit = 10 } = req.query;
+  const offset = (Number(page) - 1) * Number(limit);
+
+  let whereClause = 'WHERE 1=1';
+  const params: any[] = [];
+
+  if (search) {
+    whereClause += ` AND (p.reference_number LIKE ? OR c.name LIKE ?)`;
+    params.push(`%${search}%`, `%${search}%`);
+  }
+
+  if (customer_id) {
+    whereClause += ` AND p.customer_id = ?`;
+    params.push(customer_id);
+  }
+
+  if (payment_method) {
+    whereClause += ` AND p.payment_method = ?`;
+    params.push(payment_method);
+  }
+
+  if (start_date) {
+    whereClause += ` AND p.payment_date >= ?`;
+    params.push(start_date);
+  }
+
+  if (end_date) {
+    whereClause += ` AND p.payment_date <= ?`;
+    params.push(end_date);
+  }
+
+  // Get total count
+  const countResult = await query(
+    `SELECT COUNT(*) as count FROM payments p 
+     JOIN customers c ON p.customer_id = c.id 
+     ${whereClause}`,
+    params
+  );
+  const total = parseInt(countResult.rows[0].count);
+
+  // Get payments with customer details
+  const paymentsResult = await query(
+    `SELECT p.id, p.customer_id, p.amount, p.payment_date, p.payment_method, 
+            p.reference_number, p.notes, p.created_at,
+            c.name as customer_name, c.email as customer_email
+     FROM payments p
+     JOIN customers c ON p.customer_id = c.id
+     ${whereClause}
+     ORDER BY p.payment_date DESC, p.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...params, Number(limit), offset]
+  );
+
+  res.json({
+    success: true,
+    data: paymentsResult.rows,
+    pagination: {
+      currentPage: Number(page),
+      totalPages: Math.ceil(total / Number(limit)),
+      total,
+      limit: Number(limit)
+    }
+  });
+}));
+
+// Get payment by ID
+router.get('/:id', authenticate, asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const result = await query(
+    `SELECT p.id, p.customer_id, p.amount, p.payment_date, p.payment_method, 
+            p.reference_number, p.notes, p.created_at,
+            c.name as customer_name, c.email as customer_email
+     FROM payments p
+     JOIN customers c ON p.customer_id = c.id
+     WHERE p.id = ?`,
+    [id]
+  );
+
+  if (result.rows.length === 0) {
+    throw createError('Payment not found', 404);
+  }
+
+  res.json({
+    success: true,
+    data: result.rows[0]
+  });
+}));
+
+// Create payment
+router.post('/', authenticate, authorize(['admin', 'agency']), asyncHandler(async (req: Request, res: Response) => {
+  const {
+    customer_id,
+    amount,
+    payment_date,
+    payment_method,
+    reference_number,
+    notes
+  } = req.body;
+
+  if (!customer_id || !amount || !payment_date || !payment_method) {
+    throw createError('Customer, amount, payment date, and payment method are required', 400);
+  }
+
+  // Verify customer exists
+  const customerCheck = await query('SELECT id FROM customers WHERE id = ?', [customer_id]);
+  if (customerCheck.rows.length === 0) {
+    throw createError('Customer not found', 404);
+  }
+
+  const result = await query(
+    `INSERT INTO payments (customer_id, amount, payment_date, payment_method, reference_number, notes) 
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [customer_id, amount, payment_date, payment_method, reference_number, notes]
+  );
+
+  const insertId = result.insertId;
+  const paymentResult = await query(
+    `SELECT p.*, c.name as customer_name 
+     FROM payments p 
+     JOIN customers c ON p.customer_id = c.id 
+     WHERE p.id = ?`,
+    [insertId]
+  );
+
+  logger.info('Payment created', { paymentId: insertId, customer_id, amount });
+
+  res.status(201).json({
+    success: true,
+    data: paymentResult.rows[0],
+    message: 'Payment created successfully'
+  });
+}));
+
+// Update payment
+router.put('/:id', authenticate, authorize(['admin', 'agency']), asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const {
+    customer_id,
+    amount,
+    payment_date,
+    payment_method,
+    reference_number,
+    notes
+  } = req.body;
+
+  // Check if payment exists
+  const existingPayment = await query('SELECT id FROM payments WHERE id = ?', [id]);
+  if (existingPayment.rows.length === 0) {
+    throw createError('Payment not found', 404);
+  }
+
+  // Verify customer exists if provided
+  if (customer_id) {
+    const customerCheck = await query('SELECT id FROM customers WHERE id = ?', [customer_id]);
+    if (customerCheck.rows.length === 0) {
+      throw createError('Customer not found', 404);
+    }
+  }
+
+  await query(
+    `UPDATE payments SET 
+       customer_id = COALESCE(?, customer_id),
+       amount = COALESCE(?, amount),
+       payment_date = COALESCE(?, payment_date),
+       payment_method = COALESCE(?, payment_method),
+       reference_number = COALESCE(?, reference_number),
+       notes = COALESCE(?, notes)
+     WHERE id = ?`,
+    [customer_id, amount, payment_date, payment_method, reference_number, notes, id]
+  );
+
+  const paymentResult = await query(
+    `SELECT p.*, c.name as customer_name 
+     FROM payments p 
+     JOIN customers c ON p.customer_id = c.id 
+     WHERE p.id = ?`,
+    [id]
+  );
+
+  logger.info('Payment updated', { paymentId: id });
+
+  res.json({
+    success: true,
+    data: paymentResult.rows[0],
+    message: 'Payment updated successfully'
+  });
+}));
+
+// Delete payment
+router.delete('/:id', authenticate, authorize(['admin']), asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  // Check if payment exists
+  const existingPayment = await query('SELECT id FROM payments WHERE id = ?', [id]);
+  if (existingPayment.rows.length === 0) {
+    throw createError('Payment not found', 404);
+  }
+
+  await query('DELETE FROM payments WHERE id = ?', [id]);
+  logger.info('Payment deleted', { paymentId: id });
+
+  res.json({
+    success: true,
+    message: 'Payment deleted successfully'
+  });
+}));
+
+export default router;

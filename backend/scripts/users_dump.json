@@ -1,0 +1,450 @@
+[
+  {
+    "id": 1,
+    "email": "meenakshi.vats88@gmail.com",
+    "name": "Administrator",
+    "role": "user",
+    "roleId": 1,
+    "is_active": 1
+  },
+  {
+    "id": 45,
+    "email": "bigswingindia@gmail.com",
+    "name": "big swing",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 44,
+    "email": "nishant.verma.16@gmail.com",
+    "name": "nishant verma",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 43,
+    "email": "shwetanishantverma@gmail.com",
+    "name": "ma web technologies",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 42,
+    "email": "amitew5@gmail.com",
+    "name": "Amit",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 41,
+    "email": "softwareinbudget@gmail.com",
+    "name": "shweta",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 40,
+    "email": "fabtrotechnologies@gmail.com",
+    "name": "Ashok Kumar",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 39,
+    "email": "harigovind1967.hg@gmail.com",
+    "name": "harigovind",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 36,
+    "email": "anilsidhu@rediffmail.com",
+    "name": "anil kumar",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 47,
+    "email": "Sumitsoni506@gmail.com",
+    "name": "sumit soni",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 48,
+    "email": "star.diemould@gmail.com",
+    "name": "star die & mould company",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 46,
+    "email": "mawebtechnologies@gmail.com",
+    "name": "mawebtechnologies",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 35,
+    "email": "meenakshi.vats88@gmail.com",
+    "name": "Meenakshi sharma",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 49,
+    "email": "ataryadav11@gmail.com",
+    "name": "atar yadav",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 50,
+    "email": "rohitchaurasia88@outlook.com",
+    "name": "Rohit Chaurasia",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 51,
+    "email": "clinic.machinery@gmail.com",
+    "name": "Anup Kumar Das",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 52,
+    "email": "pardeeppanwar1285@gmail.com",
+    "name": "pardeep kumar",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 53,
+    "email": "info@adumber.com",
+    "name": "adumber Enterprises",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 54,
+    "email": "mawebtech@gmail.com",
+    "name": "mawebtech",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 55,
+    "email": "delectronicsecurity@gmail.com",
+    "name": "delectronicsecurity",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 56,
+    "email": "info@cncsolutions.co.in",
+    "name": "cncsolution",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 57,
+    "email": "f.engisols@gmail.com",
+    "name": "Narendra Nath",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 58,
+    "email": "royalcarstudio05@gmail.com",
+    "name": "royalcarstudio",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 60,
+    "email": "kamlarubyprakash@gmail.com",
+    "name": "kamaltrading",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 59,
+    "email": "khushboomr13@gmail.com",
+    "name": "Khushboo",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 61,
+    "email": "jstraders777@gmail.com",
+    "name": "jstraders",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 62,
+    "email": "jstraders777@yahoo.com",
+    "name": "jstraders",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 63,
+    "email": "meenakshi.vat88@gmail.com",
+    "name": "meenakshi",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 64,
+    "email": "ss.kureer@gmail.com",
+    "name": "KUREER",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 65,
+    "email": "rk.autoengineering@gnmail.com",
+    "name": "Auto Engineering",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 66,
+    "email": "rk.autoengineering@gmail.com",
+    "name": "auto",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 67,
+    "email": "taneja.88@gmail.com",
+    "name": "Puneet Taneja",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 68,
+    "email": "vikasharma358@gmAIL.COM",
+    "name": "VIKAS",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 69,
+    "email": "vikasharma358@gmAIL.COM",
+    "name": "VIKAS",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 70,
+    "email": "taxconsultant1005@gmail.com",
+    "name": "tarun raheja",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 71,
+    "email": "mratesting@gmail.com",
+    "name": "mratesting",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 72,
+    "email": "kalingaautotech@gmail.com",
+    "name": "kalingaautotech",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 73,
+    "email": "r.k.surgicalindustres@gmail.com",
+    "name": "rk",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 74,
+    "email": "mmtenergys@gmail.com",
+    "name": "Mukesh Kumar",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 75,
+    "email": "om.associates87@yahoo.com",
+    "name": "om",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 76,
+    "email": "vijay1976k@gmail.com",
+    "name": "vijay kumar",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 77,
+    "email": "laacasakitchen@gmail.com",
+    "name": "naresh kumar",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 78,
+    "email": "rk.autoengineering@gmail.com",
+    "name": "Rajendra kumar",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 79,
+    "email": "vdaconnector@gmail.com",
+    "name": "vdaconnector@gmail.com",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 80,
+    "email": "fatafatnow@gmail.com",
+    "name": "Fatafat Now",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 81,
+    "email": "vidushi.aharwal@yahoo.com",
+    "name": "Vidushi",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 82,
+    "email": "vishaloshos@gmail.com",
+    "name": "vishal",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 83,
+    "email": "rrpackermover@gmail.com",
+    "name": "R R PACKERS AND MOVERS",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 84,
+    "email": "vishal_hydraulics45@yahoo.in",
+    "name": "vishal",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 0
+  },
+  {
+    "id": 85,
+    "email": "vishal.hydraulics45@gmail.com",
+    "name": "vishal",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 86,
+    "email": "admin@example.com",
+    "name": "Demo Admin",
+    "role": "user",
+    "roleId": 1,
+    "is_active": 1
+  },
+  {
+    "id": 87,
+    "email": "admin1@example.com",
+    "name": "admin@example.com",
+    "role": "user",
+    "roleId": 1,
+    "is_active": 1
+  },
+  {
+    "id": 88,
+    "email": "admin3@example.com",
+    "name": "admin",
+    "role": "user",
+    "roleId": 3,
+    "is_active": 0
+  },
+  {
+    "id": 90,
+    "email": "admin2@example.com",
+    "name": "admin",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 91,
+    "email": "admin@nevaanorganic.com",
+    "name": "nevaanorganic",
+    "role": "agency",
+    "roleId": 2,
+    "is_active": 1
+  },
+  {
+    "id": 92,
+    "email": "admin@nevaanorganic.com",
+    "name": "nevaanorganic",
+    "role": "user",
+    "roleId": 2,
+    "is_active": 1
+  }
+]

@@ -1,0 +1,130 @@
+Ignoring invalid configuration option passed to Connection: acquireTimeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+Ignoring invalid configuration option passed to Connection: timeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2026-01-16 20:10:16 [[32minfo[39m]: ✅ MySQL connected successfully {"service":"erp-backend"}
+2026-01-16 20:10:16 [[33mwarn[39m]: ⚠️  Redis connection failed - continuing without caching {"service":"erp-backend"}
+--- Current Users ---
+┌─────────┬────┬────────────────────────────┬───────────────────────────────────┬──────────┬───────────┐
+│ (index) │ id │ name                       │ email                             │ role     │ agency_id │
+├─────────┼────┼────────────────────────────┼───────────────────────────────────┼──────────┼───────────┤
+│ 0       │ 1  │ 'Administrator'            │ 'meenakshi.vats88@gmail.com'      │ 'user'   │ 0         │
+│ 1       │ 45 │ 'big swing'                │ 'bigswingindia@gmail.com'         │ 'user'   │ 11        │
+│ 2       │ 44 │ 'nishant verma'            │ 'nishant.verma.16@gmail.com'      │ 'user'   │ 10        │
+│ 3       │ 43 │ 'ma web technologies'      │ 'shwetanishantverma@gmail.com'    │ 'user'   │ 9         │
+│ 4       │ 42 │ 'Amit'                     │ 'amitew5@gmail.com'               │ 'user'   │ 8         │
+│ 5       │ 41 │ 'shweta'                   │ 'softwareinbudget@gmail.com'      │ 'user'   │ 7         │
+│ 6       │ 40 │ 'Ashok Kumar'              │ 'fabtrotechnologies@gmail.com'    │ 'user'   │ 6         │
+│ 7       │ 39 │ 'harigovind'               │ 'harigovind1967.hg@gmail.com'     │ 'user'   │ 5         │
+│ 8       │ 36 │ 'anil kumar'               │ 'anilsidhu@rediffmail.com'        │ 'user'   │ 2         │
+│ 9       │ 48 │ 'star die & mould company' │ 'star.diemould@gmail.com'         │ 'user'   │ 14        │
+│ 10      │ 46 │ 'mawebtechnologies'        │ 'mawebtechnologies@gmail.com'     │ 'user'   │ 12        │
+│ 11      │ 35 │ 'Meenakshi sharma'         │ 'meenakshi.vats88@gmail.com'      │ 'user'   │ 1         │
+│ 12      │ 49 │ 'atar yadav'               │ 'ataryadav11@gmail.com'           │ 'user'   │ 15        │
+│ 13      │ 50 │ 'Rohit Chaurasia'          │ 'rohitchaurasia88@outlook.com'    │ 'user'   │ 16        │
+│ 14      │ 51 │ 'Anup Kumar Das'           │ 'clinic.machinery@gmail.com'      │ 'user'   │ 17        │
+│ 15      │ 52 │ 'pardeep kumar'            │ 'pardeeppanwar1285@gmail.com'     │ 'user'   │ 18        │
+│ 16      │ 53 │ 'adumber Enterprises'      │ 'info@adumber.com'                │ 'user'   │ 19        │
+│ 17      │ 54 │ 'mawebtech'                │ 'mawebtech@gmail.com'             │ 'user'   │ 20        │
+│ 18      │ 55 │ 'delectronicsecurity'      │ 'delectronicsecurity@gmail.com'   │ 'user'   │ 21        │
+│ 19      │ 56 │ 'cncsolution'              │ 'info@cncsolutions.co.in'         │ 'user'   │ 22        │
+│ 20      │ 57 │ 'Narendra Nath'            │ 'f.engisols@gmail.com'            │ 'user'   │ 23        │
+│ 21      │ 58 │ 'royalcarstudio'           │ 'royalcarstudio05@gmail.com'      │ 'user'   │ 24        │
+│ 22      │ 60 │ 'kamaltrading'             │ 'kamlarubyprakash@gmail.com'      │ 'user'   │ 26        │
+│ 23      │ 59 │ 'Khushboo'                 │ 'khushboomr13@gmail.com'          │ 'user'   │ 25        │
+│ 24      │ 61 │ 'jstraders'                │ 'jstraders777@gmail.com'          │ 'user'   │ 27        │
+│ 25      │ 62 │ 'jstraders'                │ 'jstraders777@yahoo.com'          │ 'user'   │ 28        │
+│ 26      │ 63 │ 'meenakshi'                │ 'meenakshi.vat88@gmail.com'       │ 'user'   │ 29        │
+│ 27      │ 64 │ 'KUREER'                   │ 'ss.kureer@gmail.com'             │ 'user'   │ 30        │
+│ 28      │ 65 │ 'Auto Engineering'         │ 'rk.autoengineering@gnmail.com'   │ 'user'   │ 31        │
+│ 29      │ 66 │ 'auto'                     │ 'rk.autoengineering@gmail.com'    │ 'user'   │ 32        │
+│ 30      │ 67 │ 'Puneet Taneja'            │ 'taneja.88@gmail.com'             │ 'user'   │ 33        │
+│ 31      │ 68 │ 'VIKAS'                    │ 'vikasharma358@gmAIL.COM'         │ 'user'   │ 34        │
+│ 32      │ 69 │ 'VIKAS'                    │ 'vikasharma358@gmAIL.COM'         │ 'user'   │ 35        │
+│ 33      │ 70 │ 'tarun raheja'             │ 'taxconsultant1005@gmail.com'     │ 'user'   │ 36        │
+│ 34      │ 71 │ 'mratesting'               │ 'mratesting@gmail.com'            │ 'user'   │ 37        │
+│ 35      │ 72 │ 'kalingaautotech'          │ 'kalingaautotech@gmail.com'       │ 'user'   │ 38        │
+│ 36      │ 73 │ 'rk'                       │ 'r.k.surgicalindustres@gmail.com' │ 'user'   │ 39        │
+│ 37      │ 74 │ 'Mukesh Kumar'             │ 'mmtenergys@gmail.com'            │ 'user'   │ 40        │
+│ 38      │ 75 │ 'om'                       │ 'om.associates87@yahoo.com'       │ 'user'   │ 41        │
+│ 39      │ 76 │ 'vijay kumar'              │ 'vijay1976k@gmail.com'            │ 'user'   │ 42        │
+│ 40      │ 77 │ 'naresh kumar'             │ 'laacasakitchen@gmail.com'        │ 'user'   │ 43        │
+│ 41      │ 78 │ 'Rajendra kumar'           │ 'rk.autoengineering@gmail.com'    │ 'user'   │ 44        │
+│ 42      │ 79 │ 'vdaconnector@gmail.com'   │ 'vdaconnector@gmail.com'          │ 'user'   │ 45        │
+│ 43      │ 80 │ 'Fatafat Now'              │ 'fatafatnow@gmail.com'            │ 'user'   │ 46        │
+│ 44      │ 81 │ 'Vidushi'                  │ 'vidushi.aharwal@yahoo.com'       │ 'user'   │ 47        │
+│ 45      │ 82 │ 'vishal'                   │ 'vishaloshos@gmail.com'           │ 'user'   │ 48        │
+│ 46      │ 83 │ 'R R PACKERS AND MOVERS'   │ 'rrpackermover@gmail.com'         │ 'user'   │ 49        │
+│ 47      │ 84 │ 'vishal'                   │ 'vishal_hydraulics45@yahoo.in'    │ 'user'   │ 50        │
+│ 48      │ 85 │ 'vishal'                   │ 'vishal.hydraulics45@gmail.com'   │ 'user'   │ 51        │
+│ 49      │ 86 │ 'Demo Admin'               │ 'admin@example.com'               │ 'user'   │ 1         │
+│ 50      │ 87 │ 'admin@example.com'        │ 'admin1@example.com'              │ 'agency' │ 7         │
+│ 51      │ 88 │ 'admin'                    │ 'admin3@example.com'              │ 'user'   │ 1         │
+│ 52      │ 90 │ 'admin'                    │ 'admin2@example.com'              │ 'user'   │ 6         │
+│ 53      │ 91 │ 'nevaanorganic'            │ 'admin@nevaanorganic.com'         │ 'agency' │ 7         │
+│ 54      │ 93 │ 'admin2@example.com'       │ 'admin5@example.com'              │ 'user'   │ 0         │
+│ 55      │ 94 │ 'Test Owner'               │ 'test1768542427931@example.com'   │ 'admin'  │ 8         │
+│ 56      │ 97 │ 'Aryan'                    │ 'aryanaijan@gmail.com'            │ 'admin'  │ 11        │
+└─────────┴────┴────────────────────────────┴───────────────────────────────────┴──────────┴───────────┘
+Deleted 0 users.
+Deleted 0 agencies.
+--- Users after cleanup ---
+┌─────────┬────┬────────────────────────────┬───────────────────────────────────┬──────────┬───────────┐
+│ (index) │ id │ name                       │ email                             │ role     │ agency_id │
+├─────────┼────┼────────────────────────────┼───────────────────────────────────┼──────────┼───────────┤
+│ 0       │ 1  │ 'Administrator'            │ 'meenakshi.vats88@gmail.com'      │ 'user'   │ 0         │
+│ 1       │ 45 │ 'big swing'                │ 'bigswingindia@gmail.com'         │ 'user'   │ 11        │
+│ 2       │ 44 │ 'nishant verma'            │ 'nishant.verma.16@gmail.com'      │ 'user'   │ 10        │
+│ 3       │ 43 │ 'ma web technologies'      │ 'shwetanishantverma@gmail.com'    │ 'user'   │ 9         │
+│ 4       │ 42 │ 'Amit'                     │ 'amitew5@gmail.com'               │ 'user'   │ 8         │
+│ 5       │ 41 │ 'shweta'                   │ 'softwareinbudget@gmail.com'      │ 'user'   │ 7         │
+│ 6       │ 40 │ 'Ashok Kumar'              │ 'fabtrotechnologies@gmail.com'    │ 'user'   │ 6         │
+│ 7       │ 39 │ 'harigovind'               │ 'harigovind1967.hg@gmail.com'     │ 'user'   │ 5         │
+│ 8       │ 36 │ 'anil kumar'               │ 'anilsidhu@rediffmail.com'        │ 'user'   │ 2         │
+│ 9       │ 48 │ 'star die & mould company' │ 'star.diemould@gmail.com'         │ 'user'   │ 14        │
+│ 10      │ 46 │ 'mawebtechnologies'        │ 'mawebtechnologies@gmail.com'     │ 'user'   │ 12        │
+│ 11      │ 35 │ 'Meenakshi sharma'         │ 'meenakshi.vats88@gmail.com'      │ 'user'   │ 1         │
+│ 12      │ 49 │ 'atar yadav'               │ 'ataryadav11@gmail.com'           │ 'user'   │ 15        │
+│ 13      │ 50 │ 'Rohit Chaurasia'          │ 'rohitchaurasia88@outlook.com'    │ 'user'   │ 16        │
+│ 14      │ 51 │ 'Anup Kumar Das'           │ 'clinic.machinery@gmail.com'      │ 'user'   │ 17        │
+│ 15      │ 52 │ 'pardeep kumar'            │ 'pardeeppanwar1285@gmail.com'     │ 'user'   │ 18        │
+│ 16      │ 53 │ 'adumber Enterprises'      │ 'info@adumber.com'                │ 'user'   │ 19        │
+│ 17      │ 54 │ 'mawebtech'                │ 'mawebtech@gmail.com'             │ 'user'   │ 20        │
+│ 18      │ 55 │ 'delectronicsecurity'      │ 'delectronicsecurity@gmail.com'   │ 'user'   │ 21        │
+│ 19      │ 56 │ 'cncsolution'              │ 'info@cncsolutions.co.in'         │ 'user'   │ 22        │
+│ 20      │ 57 │ 'Narendra Nath'            │ 'f.engisols@gmail.com'            │ 'user'   │ 23        │
+│ 21      │ 58 │ 'royalcarstudio'           │ 'royalcarstudio05@gmail.com'      │ 'user'   │ 24        │
+│ 22      │ 60 │ 'kamaltrading'             │ 'kamlarubyprakash@gmail.com'      │ 'user'   │ 26        │
+│ 23      │ 59 │ 'Khushboo'                 │ 'khushboomr13@gmail.com'          │ 'user'   │ 25        │
+│ 24      │ 61 │ 'jstraders'                │ 'jstraders777@gmail.com'          │ 'user'   │ 27        │
+│ 25      │ 62 │ 'jstraders'                │ 'jstraders777@yahoo.com'          │ 'user'   │ 28        │
+│ 26      │ 63 │ 'meenakshi'                │ 'meenakshi.vat88@gmail.com'       │ 'user'   │ 29        │
+│ 27      │ 64 │ 'KUREER'                   │ 'ss.kureer@gmail.com'             │ 'user'   │ 30        │
+│ 28      │ 65 │ 'Auto Engineering'         │ 'rk.autoengineering@gnmail.com'   │ 'user'   │ 31        │
+│ 29      │ 66 │ 'auto'                     │ 'rk.autoengineering@gmail.com'    │ 'user'   │ 32        │
+│ 30      │ 67 │ 'Puneet Taneja'            │ 'taneja.88@gmail.com'             │ 'user'   │ 33        │
+│ 31      │ 68 │ 'VIKAS'                    │ 'vikasharma358@gmAIL.COM'         │ 'user'   │ 34        │
+│ 32      │ 69 │ 'VIKAS'                    │ 'vikasharma358@gmAIL.COM'         │ 'user'   │ 35        │
+│ 33      │ 70 │ 'tarun raheja'             │ 'taxconsultant1005@gmail.com'     │ 'user'   │ 36        │
+│ 34      │ 71 │ 'mratesting'               │ 'mratesting@gmail.com'            │ 'user'   │ 37        │
+│ 35      │ 72 │ 'kalingaautotech'          │ 'kalingaautotech@gmail.com'       │ 'user'   │ 38        │
+│ 36      │ 73 │ 'rk'                       │ 'r.k.surgicalindustres@gmail.com' │ 'user'   │ 39        │
+│ 37      │ 74 │ 'Mukesh Kumar'             │ 'mmtenergys@gmail.com'            │ 'user'   │ 40        │
+│ 38      │ 75 │ 'om'                       │ 'om.associates87@yahoo.com'       │ 'user'   │ 41        │
+│ 39      │ 76 │ 'vijay kumar'              │ 'vijay1976k@gmail.com'            │ 'user'   │ 42        │
+│ 40      │ 77 │ 'naresh kumar'             │ 'laacasakitchen@gmail.com'        │ 'user'   │ 43        │
+│ 41      │ 78 │ 'Rajendra kumar'           │ 'rk.autoengineering@gmail.com'    │ 'user'   │ 44        │
+│ 42      │ 79 │ 'vdaconnector@gmail.com'   │ 'vdaconnector@gmail.com'          │ 'user'   │ 45        │
+│ 43      │ 80 │ 'Fatafat Now'              │ 'fatafatnow@gmail.com'            │ 'user'   │ 46        │
+│ 44      │ 81 │ 'Vidushi'                  │ 'vidushi.aharwal@yahoo.com'       │ 'user'   │ 47        │
+│ 45      │ 82 │ 'vishal'                   │ 'vishaloshos@gmail.com'           │ 'user'   │ 48        │
+│ 46      │ 83 │ 'R R PACKERS AND MOVERS'   │ 'rrpackermover@gmail.com'         │ 'user'   │ 49        │
+│ 47      │ 84 │ 'vishal'                   │ 'vishal_hydraulics45@yahoo.in'    │ 'user'   │ 50        │
+│ 48      │ 85 │ 'vishal'                   │ 'vishal.hydraulics45@gmail.com'   │ 'user'   │ 51        │
+│ 49      │ 86 │ 'Demo Admin'               │ 'admin@example.com'               │ 'user'   │ 1         │
+│ 50      │ 87 │ 'admin@example.com'        │ 'admin1@example.com'              │ 'agency' │ 7         │
+│ 51      │ 88 │ 'admin'                    │ 'admin3@example.com'              │ 'user'   │ 1         │
+│ 52      │ 90 │ 'admin'                    │ 'admin2@example.com'              │ 'user'   │ 6         │
+│ 53      │ 91 │ 'nevaanorganic'            │ 'admin@nevaanorganic.com'         │ 'agency' │ 7         │
+│ 54      │ 93 │ 'admin2@example.com'       │ 'admin5@example.com'              │ 'user'   │ 0         │
+│ 55      │ 94 │ 'Test Owner'               │ 'test1768542427931@example.com'   │ 'admin'  │ 8         │
+│ 56      │ 97 │ 'Aryan'                    │ 'aryanaijan@gmail.com'            │ 'admin'  │ 11        │
+└─────────┴────┴────────────────────────────┴───────────────────────────────────┴──────────┴───────────┘

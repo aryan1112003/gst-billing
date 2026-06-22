@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice from {{companyName}}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #191919; max-width: 620px; margin: 0 auto; padding: 0; background-color: #F9FAFB;">
+
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #005437 0%, #068B5E 100%); padding: 32px 32px 28px; border-radius: 12px 12px 0 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td>
+                    <div style="display: inline-flex; align-items: center; gap: 10px;">
+                        <div style="width: 36px; height: 36px; background: rgba(255,255,255,0.2); border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; color: #FFFFFF; line-height: 36px; text-align: center;">Z</div>
+                        <span style="font-size: 22px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.3px; vertical-align: middle; margin-left: 10px;">Zentax</span>
+                    </div>
+                    <div style="margin-top: 16px;">
+                        <h1 style="color: #FFFFFF; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px;">Tax Invoice</h1>
+                        <p style="color: rgba(255,255,255,0.8); margin: 4px 0 0; font-size: 14px;">from {{companyName}}</p>
+                    </div>
+                </td>
+                <td style="text-align: right; vertical-align: top;">
+                    <div style="background: rgba(255,255,255,0.15); border-radius: 8px; padding: 10px 16px; display: inline-block;">
+                        <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.8px;">INVOICE NO.</p>
+                        <p style="color: #FFFFFF; margin: 4px 0 0; font-size: 16px; font-weight: 800;">{{invoiceNumber}}</p>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Main Content -->
+    <div style="background: #FFFFFF; padding: 32px; border-left: 1px solid #E8EAEC; border-right: 1px solid #E8EAEC;">
+
+        <!-- Greeting -->
+        <p style="font-size: 16px; color: #191919; margin: 0 0 8px;">Dear <strong>{{customerName}}</strong>,</p>
+        <p style="font-size: 15px; color: #43474B; margin: 0 0 28px;">
+            Please find your GST invoice <strong style="color: #005437;">{{invoiceNumber}}</strong> attached to this email. The details are summarized below.
+        </p>
+
+        <!-- Invoice Details Card -->
+        <div style="background: #F9FAFB; border: 1px solid #E8EAEC; border-radius: 10px; overflow: hidden; margin-bottom: 28px;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tbody>
+                    <tr style="border-bottom: 1px solid #E8EAEC;">
+                        <td style="padding: 14px 20px; font-size: 14px; font-weight: 600; color: #929598;">Invoice Number</td>
+                        <td style="padding: 14px 20px; font-size: 14px; font-weight: 700; color: #191919; text-align: right;">{{invoiceNumber}}</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #E8EAEC;">
+                        <td style="padding: 14px 20px; font-size: 14px; font-weight: 600; color: #929598;">Invoice Date</td>
+                        <td style="padding: 14px 20px; font-size: 14px; font-weight: 700; color: #191919; text-align: right;">{{invoiceDate}}</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #E8EAEC;">
+                        <td style="padding: 14px 20px; font-size: 14px; font-weight: 600; color: #929598;">Due Date</td>
+                        <td style="padding: 14px 20px; font-size: 14px; font-weight: 700; color: #191919; text-align: right;">{{dueDate}}</td>
+                    </tr>
+                    <tr style="background: rgba(6, 139, 94, 0.05);">
+                        <td style="padding: 18px 20px; font-size: 15px; font-weight: 700; color: #191919;">Total Amount (Incl. GST)</td>
+                        <td style="padding: 18px 20px; text-align: right;">
+                            <span style="font-size: 24px; font-weight: 800; color: #005437;">₹{{totalAmount}}</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Custom Message -->
+        {{#if customMessage}}
+        <div style="background: rgba(6, 139, 94, 0.05); border-left: 3px solid #068B5E; border-radius: 0 8px 8px 0; padding: 14px 18px; margin-bottom: 28px;">
+            <p style="margin: 0; font-size: 14px; color: #43474B; line-height: 22px;">{{customMessage}}</p>
+        </div>
+        {{/if}}
+
+        <!-- CTA Button -->
+        <div style="text-align: center; margin: 28px 0;">
+            <a href="#" style="display: inline-block; background: #068B5E; color: #FFFFFF; text-decoration: none; padding: 14px 36px; border-radius: 10px; font-size: 15px; font-weight: 700; letter-spacing: 0.2px;">View Invoice Online</a>
+        </div>
+
+        <!-- GST Note -->
+        <div style="border: 1px solid #E8EAEC; border-radius: 8px; padding: 14px 18px; margin-top: 20px;">
+            <p style="margin: 0; font-size: 12px; color: #929598; line-height: 20px;">
+                <strong style="color: #43474B;">GST Notice:</strong> This is a computer-generated GST invoice and is legally valid without a physical signature as per the Information Technology Act, 2000. Please retain this invoice for your ITC claims.
+            </p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="background: #191919; padding: 24px 32px; border-radius: 0 0 12px 12px;">
+        <p style="margin: 0 0 8px; font-size: 13px; color: #929598;">
+            This is an automated email from Zentax. Please do not reply directly to this message.
+        </p>
+        <p style="margin: 0; font-size: 13px; color: #929598;">
+            Questions? Contact us at <a href="mailto:{{supportEmail}}" style="color: #068B5E; text-decoration: none; font-weight: 600;">{{supportEmail}}</a>
+        </p>
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #2a2e32;">
+            <p style="margin: 0; font-size: 11px; color: #43474B;">
+                © 2026 Zentax · GST Billing Software · Made in India 🇮🇳 · GSTN Certified
+            </p>
+        </div>
+    </div>
+
+</body>
+</html>

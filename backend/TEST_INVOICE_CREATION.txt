@@ -1,0 +1,53 @@
+// Test invoice creation with curl
+// Run this command to test:
+
+/*
+curl -X POST http://localhost:8001/api/v1/invoices \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -d '{
+    "customerId": 1,
+    "issueDate": "2024-01-20",
+    "dueDate": "2024-02-20",
+    "discountAmount": 0,
+    "notes": "Test invoice",
+    "lineItems": [
+      {
+        "itemId": 1,
+        "description": "Test Item",
+        "quantity": 2,
+        "unitPrice": 500,
+        "taxRate": 18
+      }
+    ],
+    "type": "invoice"
+  }'
+*/
+
+// PowerShell version:
+/*
+$headers = @{
+    "Content-Type" = "application/json"
+    "Authorization" = "Bearer YOUR_TOKEN_HERE"
+}
+
+$body = @{
+    customerId = 1
+    issueDate = "2024-01-20"
+    dueDate = "2024-02-20"
+    discountAmount = 0
+    notes = "Test invoice"
+    lineItems = @(
+        @{
+            itemId = 1
+            description = "Test Item"
+            quantity = 2
+            unitPrice = 500
+            taxRate = 18
+        }
+    )
+    type = "invoice"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:8001/api/v1/invoices" -Method POST -Headers $headers -Body $body
+*/

@@ -1,0 +1,12 @@
+.git
+node_modules
+android
+ios
+.expo
+dist
+web-build
+*.apk
+*.aab
+*.ipa
+doctor_output.txt
+doctor_output_2.txt
