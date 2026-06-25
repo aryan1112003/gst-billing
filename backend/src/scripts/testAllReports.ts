@@ -1,4 +1,4 @@
-import { ReportService } from '../services/ReportService';
+import { ReportService } from '../services/reportService';
 import { pool } from '../config/database';
 
 async function testAllReports() {
