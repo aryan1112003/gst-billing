@@ -134,7 +134,7 @@ export const InvoiceFormScreen: React.FC = ({ navigation, route }: any) => {
           hsnSac: item.hsnSac || item.item?.sku || '',
           quantity: Number(item.quantity) || 1,
           unitPrice: Number(item.unitPrice) || 0,
-          discount: Number(item.discount) || 0,
+          discount: Number(item.discountPercent) || 0,
           taxRate: Number(item.taxRate) || 18,
           total: Number(item.total) || 0,
         };
@@ -258,6 +258,14 @@ export const InvoiceFormScreen: React.FC = ({ navigation, route }: any) => {
       Alert.alert('Error', 'Please fill all item details correctly');
       return;
     }
+    if (lineItems.some(item => item.unitPrice <= 0)) {
+      Alert.alert('Error', 'Unit price must be greater than zero');
+      return;
+    }
+    if (lineItems.some(item => item.discount < 0 || item.discount > 100)) {
+      Alert.alert('Error', 'Discount must be between 0 and 100');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -272,7 +280,7 @@ export const InvoiceFormScreen: React.FC = ({ navigation, route }: any) => {
           itemId: item.itemId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          discount: item.discount,
+          discountPercent: item.discount,
           taxRate: item.taxRate,
           description: item.description,
           hsnSac: item.hsnSac,

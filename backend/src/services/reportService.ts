@@ -5,70 +5,78 @@ export class ReportService {
   // Dashboard Metrics (adapted for mawebtec_lms with multi-tenant support)
   static async getDashboardMetrics(agencyId?: number): Promise<DashboardMetrics> {
     try {
-      const agencyFilter = agencyId ? `AND agency_id = ${agencyId}` : '';
-
       // Customer count
-      const customerResult = await query(`SELECT COUNT(*) as total_customers, COUNT(*) as active_customers FROM customers WHERE 1=1 ${agencyFilter}`);
+      const customerParams: any[] = [];
+      let customerWhere = `WHERE 1=1`;
+      if (agencyId) { customerWhere += ` AND agency_id = ?`; customerParams.push(agencyId); }
+      const customerResult = await query(`SELECT COUNT(*) as total_customers FROM customers ${customerWhere}`, customerParams);
 
       // Item count
-      const itemResult = await query(`SELECT COUNT(*) as total_items, 0 as low_stock_items FROM items WHERE 1=1 ${agencyId ? `AND agency_id = ${agencyId}` : ''}`);
+      const itemParams: any[] = [];
+      let itemWhere = `WHERE 1=1`;
+      if (agencyId) { itemWhere += ` AND agency_id = ?`; itemParams.push(agencyId); }
+      const itemResult = await query(`SELECT COUNT(*) as total_items FROM items ${itemWhere}`, itemParams);
 
-      // Invoice stats
+      // Invoice stats — use is_deleted = false for PostgreSQL boolean
+      const invoiceParams: any[] = [];
+      let invoiceWhere = `WHERE is_deleted = false`;
+      if (agencyId) { invoiceWhere += ` AND agency_id = ?`; invoiceParams.push(agencyId); }
       const invoiceResult = await query(`
-        SELECT COUNT(*) as total_invoices, 
+        SELECT COUNT(*) as total_invoices,
                COUNT(CASE WHEN status = 'paid' THEN 1 END) as paid_invoices,
-               0 as overdue_invoices, 
-               COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total_sales, 
-               0 as total_receivables 
-        FROM invoices 
-        WHERE is_deleted = 0 ${agencyFilter}
-      `);
+               COUNT(CASE WHEN status = 'overdue' THEN 1 END) as overdue_invoices,
+               COALESCE(SUM(total_amount::numeric), 0) as total_sales,
+               COALESCE(SUM(CASE WHEN status != 'paid' THEN total_amount::numeric ELSE 0 END), 0) as total_receivables
+        FROM invoices
+        ${invoiceWhere}
+      `, invoiceParams);
 
-      // Expenses
+      // Expenses this month
       let expenseResult;
       try {
+        const expenseParams: any[] = [];
+        let expenseWhere = `WHERE expense_date >= DATE_TRUNC('month', CURRENT_DATE)`;
+        if (agencyId) { expenseWhere += ` AND expenses.agency_id = ?`; expenseParams.push(agencyId); }
         expenseResult = await query(`
-          SELECT COALESCE(SUM(CAST(amount AS DECIMAL(10,2))), 0) as total_expenses 
-          FROM expenses 
-          WHERE expense_date >= DATE_TRUNC('month', CURRENT_DATE)::DATE ${agencyFilter}
-        `);
+          SELECT COALESCE(SUM(amount::numeric), 0) as total_expenses
+          FROM expenses
+          ${expenseWhere}
+        `, expenseParams);
       } catch (err) {
-        expenseResult = [{ total_expenses: 0 }];
+        expenseResult = { rows: [{ total_expenses: 0 }] };
       }
 
-      // Recent activities
-      const activitiesResult = await query(`
-        (SELECT 'invoice' as type, 
-                CONCAT('Invoice ', invoice_number, ' created') as description, 
-                created_date as timestamp 
-         FROM invoices 
-         WHERE is_deleted = 0 ${agencyFilter}
-         ORDER BY created_date DESC 
-         LIMIT 5) 
-        UNION ALL 
-        (SELECT 'payment' as type, 
-                CONCAT('Payment received') as description, 
-                created_date as timestamp 
-         FROM payments_received 
-         WHERE 1=1 ${agencyFilter}
-         ORDER BY created_date DESC 
-         LIMIT 5) 
-        ORDER BY timestamp DESC 
-        LIMIT 10
-      `);
+      // Recent invoice activities only (safe)
+      let activitiesResult;
+      try {
+        const activitiesParams: any[] = [];
+        let activitiesWhere = `WHERE is_deleted = false`;
+        if (agencyId) { activitiesWhere += ` AND agency_id = ?`; activitiesParams.push(agencyId); }
+        activitiesResult = await query(`
+          SELECT 'invoice' as type,
+                 'Invoice ' || invoice_number || ' created' as description,
+                 created_at as timestamp
+          FROM invoices
+          ${activitiesWhere}
+          ORDER BY created_at DESC
+          LIMIT 10
+        `, activitiesParams);
+      } catch (err) {
+        activitiesResult = { rows: [] };
+      }
 
       return {
-        totalCustomers: parseInt(customerResult.rows[0].total_customers) || 0,
-        activeCustomers: parseInt(customerResult.rows[0].active_customers) || 0,
-        totalItems: parseInt(itemResult.rows[0].total_items) || 0,
-        lowStockItems: parseInt(itemResult.rows[0].low_stock_items) || 0,
-        totalInvoices: parseInt(invoiceResult.rows[0].total_invoices) || 0,
-        paidInvoices: parseInt(invoiceResult.rows[0].paid_invoices) || 0,
-        overdueInvoices: parseInt(invoiceResult.rows[0].overdue_invoices) || 0,
-        totalSales: parseFloat(invoiceResult.rows[0].total_sales) || 0,
-        totalReceivables: parseFloat(invoiceResult.rows[0].total_receivables) || 0,
-        totalExpenses: parseFloat(expenseResult.rows[0].total_expenses) || 0,
-        recentActivities: activitiesResult.rows.map((row: any) => ({
+        totalCustomers: parseInt(customerResult.rows[0]?.total_customers) || 0,
+        activeCustomers: parseInt(customerResult.rows[0]?.total_customers) || 0,
+        totalItems: parseInt(itemResult.rows[0]?.total_items) || 0,
+        lowStockItems: 0,
+        totalInvoices: parseInt(invoiceResult.rows[0]?.total_invoices) || 0,
+        paidInvoices: parseInt(invoiceResult.rows[0]?.paid_invoices) || 0,
+        overdueInvoices: parseInt(invoiceResult.rows[0]?.overdue_invoices) || 0,
+        totalSales: parseFloat(invoiceResult.rows[0]?.total_sales) || 0,
+        totalReceivables: parseFloat(invoiceResult.rows[0]?.total_receivables) || 0,
+        totalExpenses: parseFloat((expenseResult as any).rows?.[0]?.total_expenses) || 0,
+        recentActivities: ((activitiesResult as any).rows || []).map((row: any) => ({
           type: row.type,
           description: row.description,
           timestamp: row.timestamp
@@ -95,7 +103,7 @@ export class ReportService {
   // Sales Reports (adapted for mawebtec_lms with multi-tenant support)
   static async getSalesReport(fromDate?: Date, toDate?: Date, customerId?: string, agencyId?: number): Promise<SalesReport> {
     const params: any[] = [];
-    let whereClause = `WHERE i.is_deleted = 0`;
+    let whereClause = `WHERE i.is_deleted = false`;
 
     if (fromDate) {
       whereClause += ` AND i.invoice_date >= ?`;
@@ -134,17 +142,18 @@ export class ReportService {
       LIMIT 10
     `, params);
 
+    const byMonthParams: any[] = [];
+    let byMonthWhere = `WHERE i.is_deleted = false AND i.invoice_date >= CURRENT_DATE - INTERVAL '11 months'`;
+    if (agencyId) { byMonthWhere += ` AND i.agency_id = ?`; byMonthParams.push(agencyId); }
     const salesByMonthResult = await query(`
       SELECT TO_CHAR(i.invoice_date, 'YYYY-MM') as month,
              COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as sales,
              COUNT(i.id) as invoices
       FROM invoices i
-      WHERE i.is_deleted = 0
-        AND i.invoice_date >= CURRENT_DATE - INTERVAL '11 months'
-        ${agencyId ? `AND i.agency_id = ${agencyId}` : ''}
+      ${byMonthWhere}
       GROUP BY TO_CHAR(i.invoice_date, 'YYYY-MM')
       ORDER BY month
-    `);
+    `, byMonthParams);
 
     return {
       totalSales: parseFloat(salesResult.rows[0].total_sales) || 0,
@@ -166,21 +175,23 @@ export class ReportService {
 
   static async getSalesByCustomer(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE i.is_deleted = 0`;
+    let whereClause = `WHERE i.is_deleted = false`;
     if (fromDate) { whereClause += ` AND i.invoice_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND i.invoice_date <= ?`; params.push(toDate); }
-    if (agencyId) { whereClause += ` AND i.agency_id = ?`; params.push(agencyId); }
+    if (agencyId) {
+      whereClause += ` AND i.agency_id = ? AND c.agency_id = ?`;
+      params.push(agencyId, agencyId);
+    }
 
     const result = await query(`
-      SELECT CONCAT(c.fname, ' ', c.lname) as "Customer Name", 
-             COUNT(i.id) as "Invoice Count", 
+      SELECT CONCAT(c.fname, ' ', c.lname) as "Customer Name",
+             COUNT(i.id) as "Invoice Count",
              COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as "Total Sales",
              COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as "Sales with Tax"
-      FROM customers c 
+      FROM customers c
       JOIN invoices i ON c.id = i.customer_id
       ${whereClause}
-      ${agencyId ? `AND c.agency_id = ${agencyId}` : ''}
-      GROUP BY c.id, c.fname, c.lname 
+      GROUP BY c.id, c.fname, c.lname
       ORDER BY "Total Sales" DESC
     `, params);
 
@@ -209,20 +220,22 @@ export class ReportService {
 
   static async getSalesBySalesperson(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE i.is_deleted = 0`;
+    let whereClause = `WHERE i.is_deleted = false`;
     if (fromDate) { whereClause += ` AND i.invoice_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND i.invoice_date <= ?`; params.push(toDate); }
-    if (agencyId) { whereClause += ` AND i.agency_id = ?`; params.push(agencyId); }
+    if (agencyId) {
+      whereClause += ` AND i.agency_id = ? AND s.agency_id = ?`;
+      params.push(agencyId, agencyId);
+    }
 
     const result = await query(`
-      SELECT s.name as "Salesperson", 
-             COUNT(i.id) as "Invoice Count", 
-             COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as "Total Sales" 
-      FROM sale_persons s 
+      SELECT s.name as "Salesperson",
+             COUNT(i.id) as "Invoice Count",
+             COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as "Total Sales"
+      FROM sale_persons s
       JOIN invoices i ON s.id = i.saleperson_id
       ${whereClause}
-      ${agencyId ? `AND s.agency_id = ${agencyId}` : ''}
-      GROUP BY s.id, s.name 
+      GROUP BY s.id, s.name
       ORDER BY "Total Sales" DESC
     `, params);
 
@@ -231,15 +244,17 @@ export class ReportService {
 
   // Receivables Reports (simplified for mawebtec_lms)
   static async getReceivablesReport(agencyId?: number): Promise<ReceivablesReport> {
-    const agencyFilter = agencyId ? `AND agency_id = ${agencyId}` : '';
+    const params: any[] = [];
+    let whereClause = `WHERE is_deleted = false AND status != 'paid'`;
+    if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
     // Simplified - mawebtec_lms doesn't have paid_amount in invoices
     const receivablesResult = await query(`
-      SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total_receivables, 
-             0 as overdue_amount, 
-             COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as current_amount 
-      FROM invoices 
-      WHERE is_deleted = 0 AND status != 'paid' ${agencyFilter}
-    `);
+      SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total_receivables,
+             0 as overdue_amount,
+             COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as current_amount
+      FROM invoices
+      ${whereClause}
+    `, params);
 
     return {
       totalReceivables: parseFloat(receivablesResult.rows[0].total_receivables) || 0,
@@ -251,64 +266,70 @@ export class ReportService {
   }
 
   static async getCustomerBalances(agencyId?: number) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (agencyId) { whereClause += ` AND c.agency_id = ?`; params.push(agencyId); }
     const result = await query(`
-      SELECT CONCAT(c.fname, ' ', c.lname) as name, 
-             COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as balance 
-      FROM customers c 
-      LEFT JOIN invoices i ON c.id = i.customer_id 
-      WHERE i.is_deleted = 0 AND i.status != 'paid'
-      ${agencyId ? `AND c.agency_id = ${agencyId}` : ''}
+      SELECT CONCAT(c.fname, ' ', c.lname) as name,
+             COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as balance
+      FROM customers c
+      LEFT JOIN invoices i ON c.id = i.customer_id AND i.is_deleted = false AND i.status != 'paid'
+      ${whereClause}
       GROUP BY c.id, c.fname, c.lname
-      HAVING balance > 0
-      ORDER BY balance DESC
-    `);
+      HAVING COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) > 0
+      ORDER BY COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) DESC
+    `, params);
     return result;
   }
 
   static async getAgingSummary(agencyId?: number) {
+    const params: any[] = [];
+    let whereClause = `WHERE i.is_deleted = false AND i.status != 'paid'`;
+    if (agencyId) { whereClause += ` AND i.agency_id = ?`; params.push(agencyId); }
     const result = await query(`
-      SELECT 
-        SUM(CASE WHEN DATEDIFF(CURDATE(), i.due_date) <= 0 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as current_amount,
-        SUM(CASE WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_1_30,
-        SUM(CASE WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_31_60,
-        SUM(CASE WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 61 AND 90 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_61_90,
-        SUM(CASE WHEN DATEDIFF(CURDATE(), i.due_date) > 90 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_over_90
+      SELECT
+        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) <= 0 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as current_amount,
+        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 1 AND 30 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_1_30,
+        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 31 AND 60 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_31_60,
+        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 61 AND 90 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_61_90,
+        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) > 90 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_over_90
       FROM invoices i
-      WHERE i.is_deleted = 0 AND i.status != 'paid'
-      ${agencyId ? `AND i.agency_id = ${agencyId}` : ''}
-    `);
+      ${whereClause}
+    `, params);
 
     return result;
   }
 
   static async getAgingDetails(agencyId?: number) {
+    const params: any[] = [];
+    let whereClause = `WHERE i.is_deleted = false AND i.status != 'paid'`;
+    if (agencyId) { whereClause += ` AND i.agency_id = ?`; params.push(agencyId); }
     const result = await query(`
       SELECT i.invoice_number,
              CONCAT(c.fname, ' ', c.lname) as customer_name,
              i.invoice_date,
              i.due_date,
-             DATEDIFF(CURDATE(), i.due_date) as days_overdue,
+             (CURRENT_DATE - i.due_date::date) as days_overdue,
              CAST(i.total_amount AS DECIMAL(10,2)) as amount,
-             CASE 
-               WHEN DATEDIFF(CURDATE(), i.due_date) <= 0 THEN 'Current'
-               WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN '1-30 Days'
-               WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN '31-60 Days'
-               WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 61 AND 90 THEN '61-90 Days'
+             CASE
+               WHEN (CURRENT_DATE - i.due_date::date) <= 0 THEN 'Current'
+               WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 1 AND 30 THEN '1-30 Days'
+               WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 31 AND 60 THEN '31-60 Days'
+               WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 61 AND 90 THEN '61-90 Days'
                ELSE 'Over 90 Days'
              END as aging_bucket
       FROM invoices i
       JOIN customers c ON i.customer_id = c.id
-      WHERE i.is_deleted = 0 AND i.status != 'paid'
-      ${agencyId ? `AND i.agency_id = ${agencyId}` : ''}
+      ${whereClause}
       ORDER BY days_overdue DESC
-    `);
+    `, params);
 
     return result;
   }
 
   static async getInvoiceDetails(fromDate?: Date, toDate?: Date, status?: string, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE i.is_deleted = 0`;
+    let whereClause = `WHERE i.is_deleted = false`;
     if (fromDate) { whereClause += ` AND i.invoice_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND i.invoice_date <= ?`; params.push(toDate); }
     if (status) { whereClause += ` AND i.status = ?`; params.push(status); }
@@ -357,7 +378,7 @@ export class ReportService {
 
   static async getWithholdingTax(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE p.tax_deducted = 1`;
+    let whereClause = `WHERE p.tax_deducted = true`;
     if (fromDate) { whereClause += ` AND p.payment_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND p.payment_date <= ?`; params.push(toDate); }
     if (agencyId) { whereClause += ` AND p.agency_id = ?`; params.push(agencyId); }
@@ -395,6 +416,7 @@ export class ReportService {
     let whereClause = `WHERE 1=1`;
     if (fromDate) { whereClause += ` AND e.expense_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND e.expense_date <= ?`; params.push(toDate); }
+    if (agencyId) { whereClause += ` AND e.agency_id = ?`; params.push(agencyId); }
 
     const result = await query(`
       SELECT e.expense_date as date,
@@ -417,6 +439,7 @@ export class ReportService {
     let whereClause = `WHERE 1=1`;
     if (fromDate) { whereClause += ` AND e.expense_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND e.expense_date <= ?`; params.push(toDate); }
+    if (agencyId) { whereClause += ` AND e.agency_id = ?`; params.push(agencyId); }
 
     const result = await query(`
       SELECT e.category,
@@ -453,33 +476,40 @@ export class ReportService {
 
   // Inventory Reports
   static async getInventorySummary(agencyId?: number) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
     const result = await query(`
       SELECT name as item_name,
              hsncode as hsn_code,
              CAST(selling_price AS DECIMAL(10,2)) as unit_price,
              description
       FROM items
-      WHERE 1=1
-      ${agencyId ? `AND agency_id = ${agencyId}` : ''}
+      ${whereClause}
       ORDER BY name
-    `);
+    `, params);
 
     return result;
   }
 
   static async getInventoryValuation(agencyId?: number) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
     const result = await query(`
       SELECT COUNT(*) as total_items,
              COALESCE(SUM(CAST(selling_price AS DECIMAL(10,2))), 0) as total_value
       FROM items
-      WHERE 1=1
-      ${agencyId ? `AND agency_id = ${agencyId}` : ''}
-    `);
+      ${whereClause}
+    `, params);
 
     return result;
   }
 
   static async getStockSummary(agencyId?: number) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
     const result = await query(`
       SELECT name as item_name,
              hsncode as hsn_code,
@@ -487,15 +517,17 @@ export class ReportService {
              description,
              'Available' as status
       FROM items
-      WHERE 1=1
-      ${agencyId ? `AND agency_id = ${agencyId}` : ''}
+      ${whereClause}
       ORDER BY name
-    `);
+    `, params);
 
     return result;
   }
 
   static async getProductSales(fromDate?: Date, toDate?: Date, agencyId?: number) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (agencyId) { whereClause += ` AND it.agency_id = ?`; params.push(agencyId); }
     // Product sales - simplified version showing all items
     const result = await query(`
       SELECT it.name as product_name,
@@ -503,10 +535,9 @@ export class ReportService {
              CAST(it.selling_price AS DECIMAL(10,2)) as unit_price,
              it.description
       FROM items it
-      WHERE 1=1
-      ${agencyId ? `AND it.agency_id = ${agencyId}` : ''}
+      ${whereClause}
       ORDER BY it.name
-    `);
+    `, params);
 
     return result;
   }
@@ -515,7 +546,7 @@ export class ReportService {
   static async getProfitLoss(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const incomeParams = [];
     const expenseParams = [];
-    let incWhere = `WHERE is_deleted = 0`;
+    let incWhere = `WHERE is_deleted = false`;
     let expWhere = `WHERE 1=1`;
 
     if (fromDate) { incWhere += ` AND invoice_date >= ?`; incomeParams.push(fromDate); }
@@ -551,35 +582,40 @@ export class ReportService {
 
   static async getBalanceSheet(asOfDate?: Date, agencyId?: number) {
     // Simplified Balance Sheet
-    const params: any[] = [];
-    let whereClause = `WHERE is_deleted = 0`;
-    let purchaseWhere = `WHERE is_deleted = 0`;
+    const invoiceParams: any[] = [];
+    const purchaseParams: any[] = [];
+    let whereClause = `WHERE is_deleted = false`;
+    let purchaseWhere = `WHERE is_deleted = false`;
 
     if (asOfDate) {
       whereClause += ` AND invoice_date <= ?`;
       purchaseWhere += ` AND purchase_date <= ?`;
-      params.push(asOfDate);
+      invoiceParams.push(asOfDate);
+      purchaseParams.push(asOfDate);
     }
     if (agencyId) {
-      whereClause += ` AND agency_id = ${agencyId}`; // Using hardcoded here to avoid param mismatch if I reuse params array
-      purchaseWhere += ` AND agency_id = ${agencyId}`;
+      whereClause += ` AND agency_id = ?`;
+      purchaseWhere += ` AND agency_id = ?`;
+      invoiceParams.push(agencyId);
+      purchaseParams.push(agencyId);
     }
 
-    const receivablesResult = await query(`SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total FROM invoices ${whereClause} AND status != 'paid'`, params);
-    const payablesResult = await query(`SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total FROM purchase ${purchaseWhere} AND status != 'paid'`, params);
+    const receivablesResult = await query(`SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total FROM invoices ${whereClause} AND status != 'paid'`, invoiceParams);
+    const payablesResult = await query(`SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total FROM purchase ${purchaseWhere} AND status != 'paid'`, purchaseParams);
 
     // Bank balance (approximation from payments received - expenses)
-    // Using simple queries for now
+    const payRecParams: any[] = [];
     let payRecWhere = `WHERE 1=1`;
-    if (asOfDate) payRecWhere += ` AND payment_date <= '${asOfDate.toISOString().split('T')[0]}'`;
-    if (agencyId) payRecWhere += ` AND agency_id = ${agencyId}`;
+    if (asOfDate) { payRecWhere += ` AND payment_date <= ?`; payRecParams.push(asOfDate); }
+    if (agencyId) { payRecWhere += ` AND agency_id = ?`; payRecParams.push(agencyId); }
 
+    const expRecParams: any[] = [];
     let expRecWhere = `WHERE 1=1`;
-    if (asOfDate) expRecWhere += ` AND expense_date <= '${asOfDate.toISOString().split('T')[0]}'`;
-    if (agencyId) expRecWhere += ` AND agency_id = ${agencyId}`;
+    if (asOfDate) { expRecWhere += ` AND expense_date <= ?`; expRecParams.push(asOfDate); }
+    if (agencyId) { expRecWhere += ` AND agency_id = ?`; expRecParams.push(agencyId); }
 
-    const paymentsResult = await query(`SELECT COALESCE(SUM(CAST(amount AS DECIMAL(10,2))), 0) as total FROM payments_received ${payRecWhere}`);
-    const expensesResult = await query(`SELECT COALESCE(SUM(CAST(amount AS DECIMAL(10,2))), 0) as total FROM expenses ${expRecWhere}`);
+    const paymentsResult = await query(`SELECT COALESCE(SUM(CAST(amount AS DECIMAL(10,2))), 0) as total FROM payments_received ${payRecWhere}`, payRecParams);
+    const expensesResult = await query(`SELECT COALESCE(SUM(CAST(amount AS DECIMAL(10,2))), 0) as total FROM expenses ${expRecWhere}`, expRecParams);
 
     const totalReceivables = parseFloat(receivablesResult.rows[0].total) || 0;
     const totalPayables = parseFloat(payablesResult.rows[0].total) || 0;
@@ -634,7 +670,7 @@ export class ReportService {
   // Tax Reports
   static async getGSTSummary(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE is_deleted = 0`;
+    let whereClause = `WHERE is_deleted = false`;
     if (fromDate) { whereClause += ` AND invoice_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND invoice_date <= ?`; params.push(toDate); }
     if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
@@ -657,18 +693,18 @@ export class ReportService {
 
   static async getGSTR1(month?: number, year?: number, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE is_deleted = 0`;
+    let whereClause = `WHERE is_deleted = false`;
 
     if (month && year) {
-      whereClause += ` AND MONTH(invoice_date) = ? AND YEAR(invoice_date) = ?`;
+      whereClause += ` AND EXTRACT(MONTH FROM invoice_date) = ? AND EXTRACT(YEAR FROM invoice_date) = ?`;
       params.push(month, year);
     }
     if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
 
     // GSTR-1: Outward supplies (Sales)
     const result = await query(`
-      SELECT 
-        i.invoice_number as gstin, -- Placeholder
+      SELECT
+        c.gstin_number as receiver_gstin,
         CONCAT(c.fname, ' ', c.lname) as receiver_name,
         i.invoice_number,
         i.invoice_date,
@@ -689,10 +725,10 @@ export class ReportService {
 
   static async getGSTR2(month?: number, year?: number, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE p.is_deleted = 0`;
+    let whereClause = `WHERE p.is_deleted = false`;
 
     if (month && year) {
-      whereClause += ` AND MONTH(p.purchase_date) = ? AND YEAR(p.purchase_date) = ?`;
+      whereClause += ` AND EXTRACT(MONTH FROM p.purchase_date) = ? AND EXTRACT(YEAR FROM p.purchase_date) = ?`;
       params.push(month, year);
     }
     if (agencyId) { whereClause += ` AND p.agency_id = ?`; params.push(agencyId); }
@@ -700,8 +736,8 @@ export class ReportService {
     // GSTR-2: Inward supplies (Purchases)
     const result = await query(`
       SELECT
-        v.gstin_number as supplier_gstin,
-        v.vendor_name as supplier_name,
+        v.gstin as supplier_gstin,
+        v.name as supplier_name,
         p.purchase_number,
         p.purchase_date,
         CAST(p.total_amount AS DECIMAL(10,2)) as invoice_value,
@@ -718,18 +754,18 @@ export class ReportService {
 
   static async getGSTR3B(month?: number, year?: number, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE is_deleted = 0`;
+    let whereClause = `WHERE is_deleted = false`;
     if (month && year) {
-      whereClause += ` AND MONTH(invoice_date) = ? AND YEAR(invoice_date) = ?`;
+      whereClause += ` AND EXTRACT(MONTH FROM invoice_date) = ? AND EXTRACT(YEAR FROM invoice_date) = ?`;
       params.push(month, year);
     }
     if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
 
     // Purchase filter
     const pParams: any[] = [];
-    let pWhere = `WHERE is_deleted = 0`;
+    let pWhere = `WHERE is_deleted = false`;
     if (month && year) {
-      pWhere += ` AND MONTH(invoice_date) = ? AND YEAR(invoice_date) = ?`;
+      pWhere += ` AND EXTRACT(MONTH FROM purchase_date) = ? AND EXTRACT(YEAR FROM purchase_date) = ?`;
       pParams.push(month, year);
     }
     if (agencyId) { pWhere += ` AND agency_id = ?`; pParams.push(agencyId); }
@@ -784,7 +820,7 @@ export class ReportService {
 
   static async getTaxSummary(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE is_deleted = 0`;
+    let whereClause = `WHERE is_deleted = false`;
     if (fromDate) { whereClause += ` AND invoice_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND invoice_date <= ?`; params.push(toDate); }
     if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
@@ -807,27 +843,33 @@ export class ReportService {
 
   // Vendor Reports
   static async getVendorBalances(agencyId?: number) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+    if (agencyId) { whereClause += ` AND v.agency_id = ?`; params.push(agencyId); }
     const result = await query(`
-      SELECT v.vendor_name,
-             v.vendor_email as email,
-             COALESCE(v.vendor_phone, v.vendor_mobile) as phone,
+      SELECT v.name as vendor_name,
+             v.email,
+             v.phone,
              COALESCE(SUM(CAST(p.total_amount AS DECIMAL(10,2))), 0) as total_purchases,
              COALESCE(SUM(CASE WHEN p.status != 'paid' THEN CAST(p.total_amount AS DECIMAL(10,2)) ELSE 0 END), 0) as outstanding_balance
       FROM vendors v
-      LEFT JOIN purchase p ON v.id = p.vendor_id AND p.is_deleted = 0
-      WHERE 1=1
-      GROUP BY v.id, v.vendor_name, v.vendor_email, v.vendor_phone, v.vendor_mobile
+      LEFT JOIN purchase p ON v.id = p.vendor_id AND p.is_deleted = false
+      ${whereClause}
+      GROUP BY v.id, v.name, v.email, v.phone
       ORDER BY outstanding_balance DESC
-    `);
+    `, params);
 
     return result;
   }
 
   static async getVendorCredits(agencyId?: number) {
+    const params: any[] = [];
+    let whereClause = `WHERE p.is_deleted = false AND p.status = 'paid'`;
+    if (agencyId) { whereClause += ` AND p.agency_id = ?`; params.push(agencyId); }
     // Vendor credits - showing paid purchases
     const result = await query(`
       SELECT
-        v.vendor_name,
+        v.name as vendor_name,
         p.purchase_number,
         p.purchase_date,
         CAST(p.total_amount AS DECIMAL(10,2)) as credit_amount,
@@ -837,31 +879,30 @@ export class ReportService {
         END as status
       FROM purchase p
       JOIN vendors v ON p.vendor_id = v.id
-      WHERE p.is_deleted = 0 AND p.status = 'paid'
-      ${agencyId ? `AND p.agency_id = ${agencyId}` : ''}
+      ${whereClause}
       ORDER BY p.purchase_date DESC
-    `);
+    `, params);
 
     return result;
   }
 
   static async getPurchaseByVendor(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE p.is_deleted = 0`;
-    if (fromDate) { whereClause += ` AND p.invoice_date >= ?`; params.push(fromDate); }
-    if (toDate) { whereClause += ` AND p.invoice_date <= ?`; params.push(toDate); }
+    let whereClause = `WHERE p.is_deleted = false`;
+    if (fromDate) { whereClause += ` AND p.purchase_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND p.purchase_date <= ?`; params.push(toDate); }
     if (agencyId) { whereClause += ` AND p.agency_id = ?`; params.push(agencyId); }
 
     const result = await query(`
-      SELECT v.vendor_name,
-             v.vendor_email as email,
+      SELECT v.name as vendor_name,
+             v.email,
              COUNT(p.id) as purchase_count,
              COALESCE(SUM(CAST(p.total_amount AS DECIMAL(10,2))), 0) as total_purchases,
              COALESCE(AVG(CAST(p.total_amount AS DECIMAL(10,2))), 0) as average_purchase
       FROM vendors v
       LEFT JOIN purchase p ON v.id = p.vendor_id AND ${whereClause.replace('WHERE ', '')}
-      GROUP BY v.id, v.vendor_name, v.vendor_email
-      HAVING purchase_count > 0
+      GROUP BY v.id, v.name, v.email
+      HAVING COUNT(p.id) > 0
       ORDER BY total_purchases DESC
     `, params);
 
@@ -871,14 +912,14 @@ export class ReportService {
   static async getVendorPayments(fromDate?: Date, toDate?: Date, agencyId?: number) {
     // Vendor payments - showing purchases as proxy
     const params: any[] = [];
-    let whereClause = `WHERE p.is_deleted = 0`;
-    if (fromDate) { whereClause += ` AND p.invoice_date >= ?`; params.push(fromDate); }
-    if (toDate) { whereClause += ` AND p.invoice_date <= ?`; params.push(toDate); }
+    let whereClause = `WHERE p.is_deleted = false`;
+    if (fromDate) { whereClause += ` AND p.purchase_date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND p.purchase_date <= ?`; params.push(toDate); }
     if (agencyId) { whereClause += ` AND p.agency_id = ?`; params.push(agencyId); }
 
     const result = await query(`
       SELECT p.purchase_date as payment_date,
-             v.vendor_name,
+             v.name as vendor_name,
              p.purchase_number,
              CAST(p.total_amount AS DECIMAL(10,2)) as amount,
              CASE p.status

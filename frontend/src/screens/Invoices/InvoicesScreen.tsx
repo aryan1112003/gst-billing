@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useResponsive } from '../../utils/responsive';
 import { Text, Chip, Searchbar, IconButton, Menu } from 'react-native-paper';
@@ -49,6 +49,14 @@ export const InvoicesScreen: React.FC = ({ navigation }: any) => {
   useEffect(() => {
     fetchInvoices();
   }, [pagination.currentPage, searchQuery]);
+
+  // Refresh list when navigating back from create/edit
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchInvoices();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const fetchInvoices = async () => {
     try {
@@ -464,7 +472,10 @@ export const InvoicesScreen: React.FC = ({ navigation }: any) => {
           data={invoices.map(inv => ({
             ...inv,
             date: new Date(inv.date).toLocaleDateString(),
-            status: typeof inv.status === 'number' ? (inv.status === 1 ? 'Draft' : String(inv.status)) : inv.status
+            status: (() => {
+              const statusMap: Record<number, string> = { 1: 'Draft', 2: 'Sent', 3: 'Paid', 4: 'Overdue', 5: 'Cancelled' };
+              return typeof inv.status === 'number' ? (statusMap[inv.status] || String(inv.status)) : inv.status;
+            })()
           })) as any}
           columns={columns}
           loading={loading}

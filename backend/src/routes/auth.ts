@@ -230,22 +230,18 @@ router.post('/logout', authenticate, asyncHandler(async (req: AuthRequest, res: 
 
 // Register new user
 router.post('/register', asyncHandler(async (req: Request, res: Response) => {
-  const { username, email, password, role = 'user' } = req.body;
+  const { username, email, password } = req.body;
+  const role = 'user'; // Security: self-registration always creates user role only
 
   // Validate input
   if (!username || !email || !password) {
     throw createError('Username, email, and password are required', 400);
   }
 
-  // Validate role
-  if (!['admin', 'agency', 'user'].includes(role)) {
-    throw createError('Invalid role. Must be admin, agency, or user', 400);
-  }
-
   // Check if user already exists
   const existingUser = await query(
-    'SELECT id FROM users WHERE email = ? OR username = ?',
-    [email.toLowerCase(), username]
+    'SELECT id FROM users WHERE email = ?',
+    [email.toLowerCase()]
   );
 
   if (existingUser.rows && existingUser.rows.length > 0) {
@@ -269,7 +265,7 @@ router.post('/register', asyncHandler(async (req: Request, res: Response) => {
   const verificationToken = crypto.randomBytes(32).toString('hex');
 
   const result = await query(
-    'INSERT INTO users (name, email, password, password_hash, role, roleid, is_active, verification_token, createdby, createddtm) VALUES (?, ?, ?, ?, ?, ?, 0, ?, 1, NOW())',
+    'INSERT INTO users (name, email, password, password_hash, role, roleid, is_active, verification_token, createdby, createddtm) VALUES (?, ?, ?, ?, ?, ?, false, ?, 1, NOW())',
     [username, email.toLowerCase(), hashedPassword, hashedPassword, role, roleId, verificationToken]
   );
 
@@ -286,7 +282,7 @@ router.post('/register', asyncHandler(async (req: Request, res: Response) => {
 
   // Get created user
   const userResult = await query(
-    'SELECT id, username, email, role, is_active, createddtm FROM users WHERE id = ?',
+    'SELECT id, name, email, role, is_active, createddtm FROM users WHERE id = ?',
     [userId]
   );
 
@@ -294,11 +290,11 @@ router.post('/register', asyncHandler(async (req: Request, res: Response) => {
 
   res.status(201).json({
     success: true,
-    message: 'User registered successfully',
+    message: 'User registered successfully. Please verify your email before logging in.',
     data: {
       user: {
         id: user.id,
-        username: user.username,
+        username: user.name,
         email: user.email,
         role: user.role,
         isActive: user.is_active,
@@ -459,7 +455,7 @@ router.get('/verify-email', asyncHandler(async (req: Request, res: Response) => 
   }
 
   const userId = userResult.rows[0].id;
-  await query('UPDATE users SET is_active = 1, verification_token = NULL WHERE id = ?', [userId]);
+  await query('UPDATE users SET is_active = true, verification_token = NULL WHERE id = ?', [userId]);
 
   res.send(`
     <div style="font-family: sans-serif; text-align: center; padding: 50px;">
@@ -480,7 +476,7 @@ router.post('/forgot-password', asyncHandler(async (req: Request, res: Response)
   }
 
   const user = userResult.rows[0];
-  const token = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit code
+  const token = crypto.randomInt(100000, 1000000).toString(); // 6 digit code, cryptographically secure
   const expires = new Date(Date.now() + 3600000); // 1 hour
 
   await query('UPDATE users SET reset_password_token = ?, reset_password_expires = ? WHERE id = ?', [token, expires, user.id]);
@@ -534,7 +530,7 @@ router.post('/send-otp', authenticate, asyncHandler(async (req: AuthRequest, res
   const email = userResult.rows[0].email;
 
   // Generate 6-digit OTP
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = crypto.randomInt(100000, 1000000).toString();
   const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
   // Save to DB (reusing reset_password_token columns for simplicity as they serve same "temp code" purpose)
@@ -570,9 +566,11 @@ router.post('/verify-otp', authenticate, asyncHandler(async (req: AuthRequest, r
     throw createError('Invalid or expired OTP', 400);
   }
 
-  // OTP Valid! 
-  // We do NOT clear it immediately here on verify, purely so the subsequent action (if strict) could verify again.
-  // But for this UI-gating flow, simply returning success is enough.
+  // Invalidate OTP immediately after successful verification to prevent replay attacks
+  await query(
+    'UPDATE users SET reset_password_token = NULL, reset_password_expires = NULL WHERE id = ?',
+    [userId]
+  );
 
   res.json({ success: true, message: 'OTP verified successfully' });
 }));

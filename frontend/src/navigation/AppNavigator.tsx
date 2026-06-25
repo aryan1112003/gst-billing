@@ -76,19 +76,6 @@ export const AppNavigator: React.FC = () => {
   const authState = useSelector((state: RootState) => state.auth);
   const isAuthenticated = authState.isAuthenticated;
 
-  console.log('=== APP NAVIGATOR RENDER ===');
-  console.log('Full auth state:', {
-    isAuthenticated: authState.isAuthenticated,
-    isInitialized: authState.isInitialized,
-    isLoading: authState.isLoading,
-    hasUser: !!authState.user,
-    hasToken: !!authState.token,
-    userId: authState.user?.id,
-    userName: authState.user?.name,
-    userRole: authState.user?.role
-  });
-  console.log('Rendering:', isAuthenticated ? 'MAIN APP STACK' : 'LANDING PAGES');
-
   return (
     <Stack.Navigator
       initialRouteName={isAuthenticated ? 'Dashboard' : 'LandingHome'}

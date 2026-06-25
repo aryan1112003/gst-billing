@@ -5,7 +5,7 @@ dotenv.config();
 
 export const config = {
   // Server configuration
-  port: parseInt(process.env.PORT || '8000'),
+  port: parseInt(process.env.PORT || '8001'),
   env: process.env.NODE_ENV || 'development',
 
   // Database configuration (MySQL — default port 3306)

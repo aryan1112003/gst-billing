@@ -19,7 +19,7 @@ async function initializeMultiTenant() {
 
     // Step 2: Check if users table has agency_id column (or the typo agecny_id)
     console.log('Step 2: Checking users table structure...');
-    const connection = await pool.getConnection();
+    const connection = await (pool as any).getConnection();
 
     try {
       const [columns]: any = await connection.query(

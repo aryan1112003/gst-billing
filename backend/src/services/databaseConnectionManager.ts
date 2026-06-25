@@ -5,7 +5,8 @@ import { prepareQuery } from '../config/database';
 // Wraps a pg PoolClient to look like a mysql2 Connection
 // so that agencyService.ts / routes that call getConnection() keep working
 class PgConnectionWrapper {
-  constructor(private client: PoolClient) {}
+  public client: PoolClient;
+  constructor(client: PoolClient) { this.client = client; }
 
   async beginTransaction() {
     await this.client.query('BEGIN');
@@ -38,7 +39,8 @@ class PgConnectionWrapper {
 
 // Wraps a pg Pool to look like a mysql2 Pool
 class PgPoolWrapper {
-  constructor(private pgPool: Pool) {}
+  public pgPool: Pool;
+  constructor(pgPool: Pool) { this.pgPool = pgPool; }
 
   async getConnection(): Promise<PgConnectionWrapper> {
     const client = await this.pgPool.connect();

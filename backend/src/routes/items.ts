@@ -41,16 +41,17 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const itemsResult = await query(
     `SELECT 
        id,
-       hsncode as sku,
+       hsncode as hsn_code,
        name,
        description,
-       unit_id as unit,
+       unit_id,
+       intra_tax as gst_rate,
        0 as purchase_price,
        selling_price,
        0 as current_stock,
        0 as min_stock_level,
-       created_date as created_at,
-       updated_date as updated_at
+       created_at,
+       updated_at
      FROM items ${whereClause} 
      ORDER BY name ASC 
      LIMIT ? OFFSET ?`,
@@ -92,17 +93,18 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await query(
     `SELECT 
        id,
-       hsncode as sku,
+       hsncode as hsn_code,
        name,
        description,
-       unit_id as unit,
+       unit_id,
+       intra_tax as gst_rate,
        0 as purchase_price,
        selling_price,
        0 as current_stock,
        0 as min_stock_level,
        agency_id,
-       created_date as created_at,
-       updated_date as updated_at
+       created_at,
+       updated_at
      FROM items ${whereClause}`,
     params
   );
@@ -121,18 +123,25 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
 router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRequest, res: Response) => {
   const {
     sku,
+    hsn_code,
     name,
     description,
     unit,
-    selling_price
+    selling_price,
+    gst_rate,
   } = req.body;
 
   if (!name) {
     throw createError('Item name is required', 400);
   }
 
-  // Get user's agency_id
-  const agencyId = req.user?.agencyId || 0;
+  const validGstRates = [0, 5, 12, 18, 28];
+  const resolvedGstRate = gst_rate !== undefined ? Number(gst_rate) : 18;
+  if (!validGstRates.includes(resolvedGstRate)) {
+    throw createError(`Invalid GST rate. Must be one of: ${validGstRates.join(', ')}`, 400);
+  }
+
+  const agencyId = req.agencyId ?? req.user?.agencyId ?? null;
 
   // Check if item already exists by name in same agency
   let whereClause = 'WHERE name = ?';
@@ -148,20 +157,25 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
     `INSERT INTO items (
        itemtype_id, name, unit_id, hsncode, taxpreference_id, selling_price,
        description, intra_tax, inter_tax, reason_exempt, agency_id,
-       created_by, created_date, updated_by, updated_date
+       created_by, created_at, updated_by, updated_at
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
     [
-      1, // itemtype_id - default
+      1, // itemtype_id
       name,
-      unit || 16, // unit_id - default to 16
-      sku || '', // hsncode
-      1, // taxpreference_id - default
+      (() => {
+        if (typeof unit === 'number') return unit;
+        // Map common string unit labels to Supabase unit_id values
+        const UNIT_MAP: Record<string, number> = { PCS: 1, KG: 2, G: 3, L: 4, ML: 5, M: 6, SQ: 7, BOX: 8, PACK: 9, DOZEN: 10 };
+        return UNIT_MAP[String(unit).toUpperCase()] || 1;
+      })(), // unit_id
+      hsn_code || sku || '', // hsncode
+      1, // taxpreference_id
       selling_price || 0,
       description || '',
-      18, // intra_tax - default 18%
-      18, // inter_tax - default 18%
+      resolvedGstRate, // intra_tax
+      resolvedGstRate, // inter_tax
       '', // reason_exempt
-      agencyId, // Use user's agency_id
+      agencyId,
       req.user?.id || 1, // created_by
       req.user?.id || 1  // updated_by
     ]
@@ -171,16 +185,17 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
   const itemResult = await query(
     `SELECT 
        id,
-       hsncode as sku,
+       hsncode as hsn_code,
        name,
        description,
-       unit_id as unit,
+       unit_id,
+       intra_tax as gst_rate,
        0 as purchase_price,
        selling_price,
        0 as current_stock,
        0 as min_stock_level,
-       created_date as created_at,
-       updated_date as updated_at
+       created_at,
+       updated_at
      FROM items WHERE id = ?`,
     [insertId]
   );
@@ -248,7 +263,7 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
     updateParams.push(selling_price);
   }
 
-  updates.push('updated_date = NOW()', 'updated_by = ?');
+  updates.push('updated_at = NOW()', 'updated_by = ?');
   updateParams.push(req.user?.id || 1); // updated_by
   updateParams.push(id); // WHERE id = ?
 
@@ -262,16 +277,17 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
   const itemResult = await query(
     `SELECT 
        id,
-       hsncode as sku,
+       hsncode as hsn_code,
        name,
        description,
-       unit_id as unit,
+       unit_id,
+       intra_tax as gst_rate,
        0 as purchase_price,
        selling_price,
        0 as current_stock,
        0 as min_stock_level,
-       created_date as created_at,
-       updated_date as updated_at
+       created_at,
+       updated_at
      FROM items WHERE id = ?`,
     [id]
   );
@@ -347,7 +363,7 @@ router.post('/:id/image', cloudinaryUpload.single('image'), asyncHandler(async (
 
   const imageUrl: string = result.secure_url;
 
-  await query('UPDATE items SET image_url = ?, updated_date = NOW() WHERE id = ?', [imageUrl, id]);
+  await query('UPDATE items SET image_url = ?, updated_at = NOW() WHERE id = ?', [imageUrl, id]);
 
   logger.info('Item image uploaded to Cloudinary', { itemId: id });
 

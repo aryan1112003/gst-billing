@@ -25,7 +25,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   params = filtered.params;
 
   if (search) {
-    whereClause += ` AND (e.expense_number LIKE ? OR e.description LIKE ? OR e.reference_number LIKE ?)`;
+    whereClause += ` AND (e.expense_number ILIKE ? OR e.description ILIKE ? OR e.reference_number ILIKE ?)`;
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
   if (category) {
@@ -48,13 +48,10 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const total = parseInt(countResult.rows[0]?.count ?? 0);
 
   const expensesResult = await query(
-    `SELECT e.id, e.expense_number, e.expense_date, e.category,
-            e.amount, e.tax_amount, e.total_amount, e.payment_mode,
-            e.reference_number, e.description, e.is_billable, e.invoice_id,
-            e.vendor_id, v.vendor_name,
-            e.created_by, e.created_date, e.updated_date
+    `SELECT e.id, e.expense_date, e.category,
+            e.amount, e.description, e.is_billable,
+            e.receipt_url, e.created_at, e.updated_at
      FROM expenses e
-     LEFT JOIN vendors v ON e.vendor_id = v.id
      ${whereClause}
      ORDER BY e.expense_date DESC
      LIMIT ? OFFSET ?`,
@@ -84,13 +81,10 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   params = filtered.params;
 
   const result = await query(
-    `SELECT e.id, e.expense_number, e.expense_date, e.category,
-            e.amount, e.tax_amount, e.total_amount, e.payment_mode,
-            e.reference_number, e.description, e.is_billable, e.invoice_id,
-            e.vendor_id, v.vendor_name, v.vendor_email,
-            e.created_by, e.created_date, e.updated_date
+    `SELECT e.id, e.expense_date, e.category,
+            e.amount, e.description, e.is_billable,
+            e.receipt_url, e.customer_id, e.created_at, e.updated_at
      FROM expenses e
-     LEFT JOIN vendors v ON e.vendor_id = v.id
      ${whereClause}`,
     params
   );
@@ -116,7 +110,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
     payment_mode = 'cash',
     reference_number,
     description,
-    is_billable = 0,
+    is_billable = false,
     invoice_id,
   } = req.body;
 
@@ -124,44 +118,27 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
     throw createError('Expense date and amount are required', 400);
   }
 
-  const totalAmount = parseFloat(String(amount)) + parseFloat(String(tax_amount));
-
-  // Generate expense number
-  const countResult = await query('SELECT COUNT(*) as count FROM expenses');
-  const nextNum = (parseInt(countResult.rows[0]?.count ?? 0)) + 1;
-  const expenseNumber = `EXP-${String(nextNum).padStart(4, '0')}`;
+  const agencyId = req.agencyId ?? req.user?.agencyId ?? null;
 
   const result = await query(
     `INSERT INTO expenses (
-      expense_number, expense_date, category, vendor_id, amount, tax_amount, total_amount,
-      payment_mode, reference_number, description, is_billable, invoice_id,
-      created_by, updated_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      expense_date, category, amount, description, is_billable, agency_id, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
     [
-      expenseNumber,
       expense_date,
       category || null,
-      vendor_id || null,
       parseFloat(String(amount)),
-      parseFloat(String(tax_amount)),
-      totalAmount,
-      payment_mode,
-      reference_number || null,
       description || null,
-      is_billable ? 1 : 0,
-      invoice_id || null,
-      req.user?.id || 1,
-      req.user?.id || 1,
+      is_billable ? true : false,
+      agencyId,
     ]
   );
-
-  const expenseResult = await query('SELECT * FROM expenses WHERE id = ?', [result.insertId]);
 
   logger.info('Expense created', { expenseId: result.insertId, amount, category });
 
   res.status(201).json({
     success: true,
-    data: expenseResult.rows[0],
+    data: result.rows[0],
     message: 'Expense created successfully',
   });
 }));
@@ -196,25 +173,12 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
 
   if (expense_date !== undefined) { updateFields.push('expense_date = ?'); updateParams.push(expense_date); }
   if (category !== undefined) { updateFields.push('category = ?'); updateParams.push(category); }
-  if (vendor_id !== undefined) { updateFields.push('vendor_id = ?'); updateParams.push(vendor_id || null); }
-  if (amount !== undefined) {
-    const newAmount = parseFloat(String(amount));
-    const newTax = tax_amount !== undefined ? parseFloat(String(tax_amount)) : 0;
-    updateFields.push('amount = ?', 'tax_amount = ?', 'total_amount = ?');
-    updateParams.push(newAmount, newTax, newAmount + newTax);
-  } else if (tax_amount !== undefined) {
-    updateFields.push('tax_amount = ?');
-    updateParams.push(parseFloat(String(tax_amount)));
-  }
-  if (payment_mode !== undefined) { updateFields.push('payment_mode = ?'); updateParams.push(payment_mode); }
-  if (reference_number !== undefined) { updateFields.push('reference_number = ?'); updateParams.push(reference_number); }
+  if (amount !== undefined) { updateFields.push('amount = ?'); updateParams.push(parseFloat(String(amount))); }
   if (description !== undefined) { updateFields.push('description = ?'); updateParams.push(description); }
-  if (is_billable !== undefined) { updateFields.push('is_billable = ?'); updateParams.push(is_billable ? 1 : 0); }
-  if (invoice_id !== undefined) { updateFields.push('invoice_id = ?'); updateParams.push(invoice_id || null); }
+  if (is_billable !== undefined) { updateFields.push('is_billable = ?'); updateParams.push(is_billable ? true : false); }
 
-  // Always update audit fields
-  updateFields.push('updated_by = ?', 'updated_date = NOW()');
-  updateParams.push(req.user?.id || 1);
+  // Always update audit field
+  updateFields.push('updated_at = NOW()');
 
   updateParams.push(id);
   await query(
@@ -246,7 +210,7 @@ router.delete('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: A
     throw createError('Expense not found', 404);
   }
 
-  await query('DELETE FROM expenses WHERE id = ?', [id]);
+  await query(`DELETE FROM expenses ${filtered.whereClause}`, filtered.params);
   logger.info('Expense deleted', { expenseId: id });
 
   res.json({
@@ -287,7 +251,7 @@ router.post('/:id/receipt', authorize(['admin', 'agency']), cloudinaryUpload.sin
 
   const receiptUrl: string = result.secure_url;
 
-  await query('UPDATE expenses SET receipt_url = ?, updated_date = NOW() WHERE id = ?', [receiptUrl, id]);
+  await query('UPDATE expenses SET receipt_url = ?, updated_at = NOW() WHERE id = ?', [receiptUrl, id]);
 
   logger.info('Expense receipt uploaded to Cloudinary', { expenseId: id });
 

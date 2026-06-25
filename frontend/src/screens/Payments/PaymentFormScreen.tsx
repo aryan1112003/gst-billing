@@ -47,6 +47,17 @@ export const PaymentFormScreen: React.FC = ({ route, navigation }: any) => {
     }
   }, [paymentId]);
 
+  // Wire up "Pay Full Amount" checkbox — sums all outstanding invoice amounts
+  useEffect(() => {
+    if (payFullAmount && unpaidInvoices.length > 0) {
+      const total = unpaidInvoices.reduce((sum, inv) => sum + (inv.amount_due ?? 0), 0);
+      setAmount(total.toFixed(2));
+      const allSelected: { [key: string]: number } = {};
+      unpaidInvoices.forEach(inv => { allSelected[inv.id] = inv.amount_due ?? 0; });
+      setSelectedInvoices(allSelected);
+    }
+  }, [payFullAmount, unpaidInvoices]);
+
   useEffect(() => {
     if (selectedCustomer) {
       fetchUnpaidInvoices(selectedCustomer);
@@ -64,12 +75,13 @@ export const PaymentFormScreen: React.FC = ({ route, navigation }: any) => {
 
   const fetchUnpaidInvoices = async (customerId: string) => {
     try {
-      const response = await invoicesAPI.getAll({ 
-        customer_id: customerId,
+      const response = await invoicesAPI.getAll({
+        customerId,
         status: 'unpaid',
-        limit: 100 
+        limit: 100
       });
-      setUnpaidInvoices(response.data || []);
+      const invoices = response?.data?.invoices || response?.data || response?.invoices || [];
+      setUnpaidInvoices(invoices);
     } catch (err) {
       console.error('Failed to fetch unpaid invoices:', err);
       setUnpaidInvoices([]);
@@ -79,12 +91,13 @@ export const PaymentFormScreen: React.FC = ({ route, navigation }: any) => {
   const fetchPaymentDetails = async () => {
     try {
       setLoading(true);
-      const payment = await paymentsAPI.getById(paymentId);
-      // Populate form with payment data
-      setSelectedCustomer(payment.customer_id);
-      setAmount(payment.amount?.toString() || '');
-      setPaymentMethod(payment.payment_method || 'cash');
-      setReferenceNumber(payment.reference_number || '');
+      const response = await paymentsAPI.getById(paymentId);
+      // Unwrap API response envelope
+      const payment = response?.data?.payment || response?.data || response;
+      setSelectedCustomer(String(payment.customer_id || ''));
+      setAmount(String(payment.amount ?? ''));
+      setPaymentMethod(payment.payment_mode || payment.payment_method || 'cash');
+      setReferenceNumber(payment.reference || payment.reference_number || '');
       setNotes(payment.notes || '');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to load payment details');
@@ -300,8 +313,8 @@ export const PaymentFormScreen: React.FC = ({ route, navigation }: any) => {
                     <DataTable.Row key={invoice.id}>
                       <DataTable.Cell>{invoice.invoice_date}</DataTable.Cell>
                       <DataTable.Cell>{invoice.invoice_number}</DataTable.Cell>
-                      <DataTable.Cell numeric>₹{invoice.total_amount.toFixed(2)}</DataTable.Cell>
-                      <DataTable.Cell numeric>₹{invoice.amount_due.toFixed(2)}</DataTable.Cell>
+                      <DataTable.Cell numeric>₹{(invoice.total_amount ?? 0).toFixed(2)}</DataTable.Cell>
+                      <DataTable.Cell numeric>₹{(invoice.amount_due ?? 0).toFixed(2)}</DataTable.Cell>
                       <DataTable.Cell>
                         <View style={styles.paymentCell}>
                           <TextInput

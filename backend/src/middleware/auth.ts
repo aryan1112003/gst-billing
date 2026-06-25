@@ -60,7 +60,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
         id: user.id,
         email: user.email,
         role: roleName,
-        agencyId: user.agecny_id || null,
+        agencyId: user.agecny_id ?? null,
         accountType: user.account_type,
         permissions: [],
       };
@@ -158,7 +158,7 @@ export const optionalAuth = async (req: AuthRequest, res: Response, next: NextFu
           id: user.id,
           email: user.email,
           role: roleMap2[user.roleid] || 'user',
-          agencyId: user.agecny_id || null,
+          agencyId: user.agecny_id ?? null,
           accountType: user.account_type,
           permissions: [],
         };

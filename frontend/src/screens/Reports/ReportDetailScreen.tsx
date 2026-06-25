@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, Platform } from 'react-native';
 import { Text, ActivityIndicator, DataTable } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MainLayout } from '../../components/Layout/MainLayout';
@@ -113,6 +113,10 @@ export const ReportDetailScreen = ({ navigation, route }: any) => {
         Alert.alert('Error', 'Please enter both from and to dates');
         return;
       }
+      if (fromDate > toDate) {
+        Alert.alert('Error', 'From date cannot be after to date');
+        return;
+      }
       filters = { fromDate, toDate };
     } else if (filterType === 'month') {
       if (!selectedMonth) {
@@ -182,24 +186,27 @@ export const ReportDetailScreen = ({ navigation, route }: any) => {
       // For web, we can use window.open or create a download link
       // For mobile, we might need to use a different approach
       const response = await api.get(exportUrl, {
-        responseType: 'blob', // Important for file downloads
+        responseType: 'blob',
       }) as Blob;
 
-      // Create download link
-      const blob = new Blob([response], {
+      // response is already a Blob from downloadBlob()
+      const blob = new Blob([response as any], {
         type: format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       });
 
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${reportTitle.replace(/\s+/g, '_')}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      Alert.alert('Success', `${format.toUpperCase()} export completed successfully!`);
+      if (Platform.OS === 'web') {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${reportTitle.replace(/\s+/g, '_')}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        Alert.alert('Success', `${format.toUpperCase()} export completed successfully!`);
+      } else {
+        Alert.alert('Export', 'File download is available on web only.');
+      }
     } catch (error: any) {
       console.error('Export failed:', error);
       Alert.alert('Export Failed', error.message || `Failed to export ${format.toUpperCase()}`);
@@ -239,7 +246,7 @@ export const ReportDetailScreen = ({ navigation, route }: any) => {
               {Object.values(row).map((value: any, colIndex: number) => (
                 <DataTable.Cell key={colIndex}>
                   <Text style={{ color: themeColors.text.primary }}>
-                    {typeof value === 'number' && reportData.columns[colIndex]?.toLowerCase().includes('amount')
+                    {value == null ? '—' : typeof value === 'number' && reportData.columns[colIndex]?.toLowerCase().includes('amount')
                       ? formatCurrency(value)
                       : String(value)}
                   </Text>
@@ -252,10 +259,10 @@ export const ReportDetailScreen = ({ navigation, route }: any) => {
     }
 
     // Handle summary reports
-    if (reportData.summary) {
+    if (reportData.summary && typeof reportData.summary === 'object') {
       return (
         <View style={[styles.summaryContainer, { backgroundColor: isDarkMode ? themeColors.surface.primary : '#FFFFFF' }]}>
-          {Object.entries(reportData.summary).map(([key, value]: [string, any]) => (
+          {Object.entries(reportData.summary as object).map(([key, value]: [string, any]) => (
             <View key={key} style={[styles.summaryItem, { borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : '#F0F0F0' }]}>
               <Text style={[styles.summaryLabel, { color: themeColors.text.secondary }]}>{key.replace(/_/g, ' ').toUpperCase()}</Text>
               <Text style={[styles.summaryValue, { color: themeColors.text.primary }]}>

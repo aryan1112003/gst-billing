@@ -28,7 +28,7 @@ router.get('/', authenticate, requireRole(['admin', 'agency']), asyncHandler(asy
     }
 
     if (search) {
-        whereClause += ' AND (email LIKE ? OR name LIKE ?)';
+        whereClause += ' AND (email ILIKE ? OR name ILIKE ?)';
         params.push(`%${search}%`, `%${search}%`);
     }
 
@@ -37,7 +37,7 @@ router.get('/', authenticate, requireRole(['admin', 'agency']), asyncHandler(asy
         `SELECT COUNT(*) as total FROM users ${whereClause}`,
         params
     );
-    const total = countResult.rows[0].total;
+    const total = parseInt(countResult.rows[0].total, 10);
 
     // Get users
     const result = await query(
@@ -109,7 +109,7 @@ router.post('/', authenticate, requireRole(['admin', 'agency']), checkEmployeeLi
             throw createError('Agency admins can only create regular users', 403);
         }
     } else {
-        finalAgencyId = agencyId || 0;
+        finalAgencyId = agencyId ?? null;
     }
 
     // Check if email already exists
@@ -164,9 +164,9 @@ router.post('/', authenticate, requireRole(['admin', 'agency']), checkEmployeeLi
             hashedPassword,
             hashedPassword,
             roleId || 3,
-            finalAgencyId || 0,
-            finalAgencyId || 0,
-            is_active !== undefined ? (is_active ? 1 : 0) : 1,
+            finalAgencyId ?? null,
+            finalAgencyId ?? null,
+            is_active !== undefined ? (is_active ? true : false) : true,
             req.user!.id
         ]
     );
@@ -262,7 +262,7 @@ router.put('/:id', authenticate, requireRole(['admin', 'agency']), asyncHandler(
 
     if (is_active !== undefined) {
         updates.push('is_active = ?');
-        updateParams.push(is_active ? 1 : 0);
+        updateParams.push(is_active ? true : false);
     }
 
     if (updates.length === 0) {
@@ -327,7 +327,7 @@ router.post('/:id/avatar', authenticate, cloudinaryUpload.single('avatar'), asyn
     if (!req.file) throw createError('No file uploaded', 400);
 
     // Users can only update their own avatar; admins can update any
-    if (req.user!.role !== 'admin' && req.user!.id !== userId) {
+    if (req.user!.role !== 'admin' && String(req.user!.id) !== String(userId)) {
         throw createError('You do not have permission to update this profile picture', 403);
     }
 

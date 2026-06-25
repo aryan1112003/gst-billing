@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
-import { ReportService } from '../services/reportService';
+import { ReportService } from '../services/ReportService';
 import { ExportService } from '../services/exportService';
 
 export class ReportController {

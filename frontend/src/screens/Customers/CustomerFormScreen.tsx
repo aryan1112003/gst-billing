@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { Text, TextInput, Button } from 'react-native-paper';
+import { Text, TextInput, Button, HelperText } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MainLayout } from '../../components/Layout/MainLayout';
 import { colors } from '../../theme/colors';
 import { customersAPI } from '../../services/api';
 import { useResponsive } from '../../utils/responsive';
+import { PhoneInput } from '../../components/Common/PhoneInput';
 
 export const CustomerFormScreen: React.FC = ({ navigation, route }: any) => {
   const customerId = route?.params?.customerId;
@@ -13,6 +14,8 @@ export const CustomerFormScreen: React.FC = ({ navigation, route }: any) => {
   const { isMobile, isTablet, rs } = useResponsive();
 
   const [loading, setLoading] = useState(false);
+  const [phoneValid, setPhoneValid] = useState(true);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -52,12 +55,22 @@ export const CustomerFormScreen: React.FC = ({ navigation, route }: any) => {
     }
   };
 
-  const handleSubmit = async () => {
-    // Validation
-    if (!formData.name.trim()) {
-      Alert.alert('Validation Error', 'Customer name is required');
-      return;
+  const validateForm = () => {
+    const errs: Record<string, string> = {};
+    if (!formData.name.trim()) errs.name = 'Customer name is required';
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errs.email = 'Invalid email format';
     }
+    if (formData.phone && !phoneValid) errs.phone = 'Invalid phone number';
+    if (formData.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(formData.gstin)) {
+      errs.gstin = 'Invalid GSTIN format (e.g., 29ABCDE1234F1Z5)';
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
 
     try {
       setLoading(true);
@@ -183,12 +196,13 @@ export const CustomerFormScreen: React.FC = ({ navigation, route }: any) => {
               <TextInput
                 mode="outlined"
                 value={formData.name}
-                onChangeText={(text) => setFormData({ ...formData, name: text })}
+                onChangeText={(text) => { setFormData({ ...formData, name: text }); setErrors((e) => ({ ...e, name: '' })); }}
                 placeholder="Enter customer name"
                 style={s.input}
-                outlineColor={colors.neutral[300]}
+                outlineColor={errors.name ? colors.error.main : colors.neutral[300]}
                 activeOutlineColor={colors.primary.main}
               />
+              {errors.name ? <HelperText type="error">{errors.name}</HelperText> : null}
             </View>
 
             <View style={s.inputGroup}>
@@ -196,29 +210,29 @@ export const CustomerFormScreen: React.FC = ({ navigation, route }: any) => {
               <TextInput
                 mode="outlined"
                 value={formData.email}
-                onChangeText={(text) => setFormData({ ...formData, email: text })}
+                onChangeText={(text) => { setFormData({ ...formData, email: text }); setErrors((e) => ({ ...e, email: '' })); }}
                 placeholder="customer@example.com"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 style={s.input}
-                outlineColor={colors.neutral[300]}
+                outlineColor={errors.email ? colors.error.main : colors.neutral[300]}
                 activeOutlineColor={colors.primary.main}
               />
+              {errors.email ? <HelperText type="error">{errors.email}</HelperText> : null}
             </View>
 
             {/* Phone + GSTIN row on tablet/desktop */}
             <View style={{ flexDirection: rs('column', 'row', 'row') as any, gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={s.label}>Phone</Text>
-                <TextInput
-                  mode="outlined"
+                <PhoneInput
+                  label="Phone"
                   value={formData.phone}
-                  onChangeText={(text) => setFormData({ ...formData, phone: text })}
-                  placeholder="Enter phone number"
-                  keyboardType="phone-pad"
-                  style={s.input}
-                  outlineColor={colors.neutral[300]}
-                  activeOutlineColor={colors.primary.main}
+                  onChangePhone={(fullPhone, isValid) => {
+                    setFormData({ ...formData, phone: fullPhone });
+                    setPhoneValid(isValid || !fullPhone);
+                    setErrors((e) => ({ ...e, phone: '' }));
+                  }}
+                  error={errors.phone}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -226,14 +240,14 @@ export const CustomerFormScreen: React.FC = ({ navigation, route }: any) => {
                 <TextInput
                   mode="outlined"
                   value={formData.gstin}
-                  onChangeText={(text) => setFormData({ ...formData, gstin: text.toUpperCase() })}
-                  placeholder="Enter GST number (e.g., 29ABCDE1234F1Z5)"
+                  onChangeText={(text) => { setFormData({ ...formData, gstin: text.toUpperCase() }); setErrors((e) => ({ ...e, gstin: '' })); }}
+                  placeholder="29ABCDE1234F1Z5"
                   autoCapitalize="characters"
                   style={s.input}
-                  outlineColor={colors.neutral[300]}
+                  outlineColor={errors.gstin ? colors.error.main : colors.neutral[300]}
                   activeOutlineColor={colors.primary.main}
                 />
-                <Text style={s.helperText}>15-digit GST identification number</Text>
+                {errors.gstin ? <HelperText type="error">{errors.gstin}</HelperText> : <Text style={s.helperText}>15-digit GST identification number</Text>}
               </View>
             </View>
 

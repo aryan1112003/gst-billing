@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Platform } from 'react-native';
 import { Text, TextInput, Button, ActivityIndicator, Menu, Divider } from 'react-native-paper';
+import { PhoneInput } from '../../components/Common/PhoneInput';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux';
@@ -508,16 +509,16 @@ export const OrganizationProfileScreen: React.FC<OrganizationProfileScreenProps>
         {/* Contact Information */}
         <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>Contact Information</Text>
 
-        <TextInput
+        <PhoneInput
           label="Phone Number"
           value={formData.phone}
-          onChangeText={(text) => setFormData({ ...formData, phone: text })}
-          mode="outlined"
-          keyboardType="phone-pad"
-          style={[styles.input, { backgroundColor: inputBgColor }]}
-          outlineColor={themeColors.neutral[300]}
-          activeOutlineColor={themeColors.primary.main}
+          onChangePhone={(fullPhone) => setFormData({ ...formData, phone: fullPhone })}
+          activeColor={themeColors.primary.main}
+          borderColor={themeColors.neutral[300]}
+          selectorBg={isDarkMode ? themeColors.surface.secondary : '#F3F4F5'}
           textColor={themeColors.text.primary}
+          labelColor={themeColors.text.secondary}
+          style={[styles.input, { backgroundColor: inputBgColor }]}
         />
 
         <TextInput

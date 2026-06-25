@@ -2,7 +2,7 @@ import express, { Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { agencyFilter, addAgencyFilter } from '../middleware/agencyFilter';
 import { asyncHandler, createError } from '../middleware/errorHandler';
-import { query } from '../config/database';
+import { query, withTransaction } from '../config/database';
 import { logger } from '../config/logger';
 import { AuditService } from '../services/auditService';
 
@@ -17,7 +17,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { search, status, vendorId, startDate, endDate, page = 1, limit = 10 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
-  let whereClause = 'WHERE p.is_deleted = 0';
+  let whereClause = 'WHERE p.is_deleted = false';
   let queryParams: any[] = [];
 
   // Add agency filter
@@ -26,7 +26,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   queryParams = filtered.params;
 
   if (search) {
-    whereClause += ` AND (p.purchase_number LIKE ? OR v.vendor_name LIKE ?)`;
+    whereClause += ` AND (p.purchase_number ILIKE ? OR v.name ILIKE ?)`;
     queryParams.push(`%${search}%`, `%${search}%`);
   }
   if (status) {
@@ -57,7 +57,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
             p.subtotal, p.discount_amount, p.tax_amount, p.total_amount,
             p.paid_amount, p.balance_amount, p.status,
             p.created_date, p.updated_date,
-            v.vendor_name, v.vendor_email, v.vendor_phone
+            v.name as vendor_name, v.email as vendor_email, v.phone as vendor_phone
      FROM purchase p
      LEFT JOIN vendors v ON p.vendor_id = v.id
      ${whereClause}
@@ -82,7 +82,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
 router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
-  let whereClause = 'WHERE p.id = ? AND p.is_deleted = 0';
+  let whereClause = 'WHERE p.id = ? AND p.is_deleted = false';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null, 'p');
   whereClause = filtered.whereClause;
@@ -90,9 +90,9 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
 
   const purchaseResult = await query(
     `SELECT p.*,
-            v.vendor_name, v.vendor_email, v.vendor_phone, v.vendor_mobile,
-            v.company_name as vendor_company, v.gstin_number as vendor_gstin,
-            v.address as vendor_address
+            v.name as vendor_name, v.email as vendor_email, v.phone as vendor_phone,
+            v.gstin as vendor_gstin,
+            v.address_street as vendor_address
      FROM purchase p
      LEFT JOIN vendors v ON p.vendor_id = v.id
      ${whereClause}`,
@@ -158,8 +158,11 @@ router.post('/', asyncHandler(async (req: AuthRequest, res: Response) => {
     throw createError('Vendor not found', 404);
   }
 
-  // Generate purchase number
-  const countResult = await query('SELECT COUNT(*) as count FROM purchase WHERE is_deleted = 0');
+  // Generate purchase number (agency-scoped to avoid cross-tenant collisions)
+  let numWhere = 'WHERE is_deleted = false';
+  let numParams: any[] = [];
+  const numFiltered = addAgencyFilter(numWhere, numParams, req.agencyId ?? null);
+  const countResult = await query(`SELECT COUNT(*) as count FROM purchase ${numFiltered.whereClause}`, numFiltered.params);
   const nextNumber = (parseInt(countResult.rows[0]?.count ?? 0)) + 1;
   const purchaseNumber = `PO-${String(nextNumber).padStart(4, '0')}`;
 
@@ -190,73 +193,53 @@ router.post('/', asyncHandler(async (req: AuthRequest, res: Response) => {
 
   const totalAmount = parseFloat((subtotal + taxAmount).toFixed(2));
 
-  await query('START TRANSACTION');
-
-  try {
-    const purchaseResult = await query(
+  const purchaseId = await withTransaction(async (tq) => {
+    const purchaseResult = await tq(
       `INSERT INTO purchase (
         vendor_id, purchase_number, purchase_date, due_date, payment_terms,
         reference_number, subtotal, tax_amount, total_amount, balance_amount,
-        status, vendor_notes, created_by, updated_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        status, vendor_notes, agency_id, created_by, updated_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        vendorId,
-        purchaseNumber,
-        purchaseDate,
-        dueDate || null,
-        paymentTerms || null,
-        referenceNumber || null,
-        subtotal.toFixed(2),
-        taxAmount.toFixed(2),
-        totalAmount.toFixed(2),
-        totalAmount.toFixed(2),
-        status || 'draft',
-        notes || null,
-        req.user?.id || 1,
-        req.user?.id || 1,
+        vendorId, purchaseNumber, purchaseDate, dueDate || null,
+        paymentTerms || null, referenceNumber || null,
+        subtotal.toFixed(2), taxAmount.toFixed(2),
+        totalAmount.toFixed(2), totalAmount.toFixed(2),
+        status || 'draft', notes || null,
+        req.agencyId ?? null,
+        req.user?.id || 1, req.user?.id || 1,
       ]
     );
 
-    const purchaseId = purchaseResult.insertId;
+    const newId = purchaseResult.insertId;
 
-    // Insert line items into purchase_items table
     for (const li of processedLineItems) {
-      await query(
+      await tq(
         `INSERT INTO purchase_items
           (purchase_id, item_id, item_name, description, quantity, unit, rate, discount_percent, tax_rate, amount)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [purchaseId, li.item_id, li.item_name, li.description, li.quantity, li.unit, li.rate, li.discount_percent, li.tax_rate, li.amount]
+        [newId, li.item_id, li.item_name, li.description, li.quantity, li.unit, li.rate, li.discount_percent, li.tax_rate, li.amount]
       );
     }
 
-    await query('COMMIT');
+    return newId;
+  });
 
-    logger.info('Purchase created with ID:', purchaseId);
+  logger.info('Purchase created with ID:', purchaseId);
 
-    // Fetch created purchase for response
-    const createdPurchase = await query('SELECT * FROM purchase WHERE id = ?', [purchaseId]);
+  const createdPurchase = await query('SELECT * FROM purchase WHERE id = ?', [purchaseId]);
 
-    // Log audit
-    await AuditService.logAction(
-      req.user?.id ? String(req.user.id) : undefined,
-      'purchase',
-      purchaseId,
-      'CREATE',
-      null,
-      createdPurchase.rows[0],
-      req.ip,
-      req.get('User-Agent')
-    );
+  await AuditService.logAction(
+    req.user?.id ? String(req.user.id) : undefined,
+    'purchase', purchaseId, 'CREATE', null, createdPurchase.rows[0],
+    req.ip, req.get('User-Agent')
+  );
 
-    res.status(201).json({
-      success: true,
-      data: createdPurchase.rows[0],
-      message: 'Purchase created successfully',
-    });
-  } catch (error) {
-    await query('ROLLBACK');
-    throw error;
-  }
+  res.status(201).json({
+    success: true,
+    data: createdPurchase.rows[0],
+    message: 'Purchase created successfully',
+  });
 }));
 
 // PUT /purchases/:id — update purchase
@@ -267,7 +250,7 @@ router.put('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   logger.info('Updating purchase:', { id, vendorId, lineItemsCount: lineItems?.length });
 
   // Check if purchase exists with agency filter
-  let whereClause = 'WHERE id = ? AND is_deleted = 0';
+  let whereClause = 'WHERE id = ? AND is_deleted = false';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
   const existingPurchase = await query(`SELECT * FROM purchase ${filtered.whereClause}`, filtered.params);
@@ -278,51 +261,58 @@ router.put('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
 
   const existing = existingPurchase.rows[0];
 
-  await query('START TRANSACTION');
+  if (['received', 'billed'].includes(existing.status)) {
+    throw createError('Cannot edit a received or billed purchase', 400);
+  }
 
-  try {
-    const updateFields: string[] = [];
-    const updateParams: any[] = [];
+  const updateFields: string[] = [];
+  const updateParams: any[] = [];
+  let newLineItems: any[] | null = null;
 
-    if (vendorId) { updateFields.push('vendor_id = ?'); updateParams.push(vendorId); }
-    if (purchaseDate) { updateFields.push('purchase_date = ?'); updateParams.push(purchaseDate); }
-    if (dueDate !== undefined) { updateFields.push('due_date = ?'); updateParams.push(dueDate || null); }
-    if (status !== undefined) { updateFields.push('status = ?'); updateParams.push(status); }
-    if (notes !== undefined) { updateFields.push('vendor_notes = ?'); updateParams.push(notes); }
+  if (vendorId) { updateFields.push('vendor_id = ?'); updateParams.push(vendorId); }
+  if (purchaseDate) { updateFields.push('purchase_date = ?'); updateParams.push(purchaseDate); }
+  if (dueDate !== undefined) { updateFields.push('due_date = ?'); updateParams.push(dueDate || null); }
+  if (status !== undefined) { updateFields.push('status = ?'); updateParams.push(status); }
+  if (notes !== undefined) { updateFields.push('vendor_notes = ?'); updateParams.push(notes); }
 
-    if (Array.isArray(lineItems) && lineItems.length > 0) {
-      let subtotal = 0;
-      let taxAmount = 0;
-      const processedLineItems = lineItems.map((item: any) => {
-        const qty = parseFloat(item.quantity) || 0;
-        const rate = parseFloat(item.unitCost) || 0;
-        const discountPct = parseFloat(item.discountPercent) || 0;
-        const taxRate = parseFloat(item.taxRate) || 0;
-        const lineTotal = qty * rate * (1 - discountPct / 100);
-        const lineTax = lineTotal * (taxRate / 100);
-        subtotal += lineTotal;
-        taxAmount += lineTax;
-        return {
-          item_id: item.itemId || null,
-          item_name: item.itemName || item.description || 'Item',
-          description: item.description || '',
-          quantity: qty,
-          unit: item.unit || 'pcs',
-          rate,
-          discount_percent: discountPct,
-          tax_rate: taxRate,
-          amount: parseFloat((lineTotal + lineTax).toFixed(2)),
-        };
-      });
+  if (Array.isArray(lineItems) && lineItems.length > 0) {
+    let subtotal = 0;
+    let taxAmount = 0;
+    const processedLineItems = lineItems.map((item: any) => {
+      const qty = parseFloat(item.quantity) || 0;
+      const rate = parseFloat(item.unitCost) || 0;
+      const discountPct = parseFloat(item.discountPercent) || 0;
+      const taxRate = parseFloat(item.taxRate) || 0;
+      const lineTotal = qty * rate * (1 - discountPct / 100);
+      const lineTax = lineTotal * (taxRate / 100);
+      subtotal += lineTotal;
+      taxAmount += lineTax;
+      return {
+        item_id: item.itemId || null,
+        item_name: item.itemName || item.description || 'Item',
+        description: item.description || '',
+        quantity: qty, unit: item.unit || 'pcs', rate,
+        discount_percent: discountPct, tax_rate: taxRate,
+        amount: parseFloat((lineTotal + lineTax).toFixed(2)),
+      };
+    });
 
-      const totalAmount = parseFloat((subtotal + taxAmount).toFixed(2));
-      updateFields.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?', 'balance_amount = ?');
-      updateParams.push(subtotal.toFixed(2), taxAmount.toFixed(2), totalAmount.toFixed(2), totalAmount.toFixed(2));
+    const totalAmount = parseFloat((subtotal + taxAmount).toFixed(2));
+    const existingPaid = parseFloat(existing.paid_amount ?? 0);
+    const newBalance = Math.max(0, totalAmount - existingPaid);
+    updateFields.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?', 'balance_amount = ?');
+    updateParams.push(subtotal.toFixed(2), taxAmount.toFixed(2), totalAmount.toFixed(2), newBalance.toFixed(2));
+    newLineItems = processedLineItems;
+  }
 
-      // Replace purchase_items
-      await query('DELETE FROM purchase_items WHERE purchase_id = ?', [id]);
-      for (const li of processedLineItems) {
-        await query(
+  updateFields.push('updated_by = ?', 'updated_date = NOW()');
+  updateParams.push(req.user?.id || 1);
+
+  await withTransaction(async (tq) => {
+    if (newLineItems) {
+      await tq('DELETE FROM purchase_items WHERE purchase_id = ?', [id]);
+      for (const li of newLineItems) {
+        await tq(
           `INSERT INTO purchase_items
             (purchase_id, item_id, item_name, description, quantity, unit, rate, discount_percent, tax_rate, amount)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -330,49 +320,33 @@ router.put('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
         );
       }
     }
-
-    updateFields.push('updated_by = ?', 'updated_date = NOW()');
-    updateParams.push(req.user?.id || 1);
-
     if (updateFields.length > 0) {
-      updateParams.push(id);
-      await query(`UPDATE purchase SET ${updateFields.join(', ')} WHERE id = ?`, updateParams);
+      await tq(`UPDATE purchase SET ${updateFields.join(', ')} WHERE id = ?`, [...updateParams, id]);
     }
+  });
 
-    await query('COMMIT');
+  logger.info('Purchase updated successfully', { id });
 
-    logger.info('Purchase updated successfully', { id });
+  const result = await query('SELECT * FROM purchase WHERE id = ?', [id]);
 
-    const result = await query('SELECT * FROM purchase WHERE id = ?', [id]);
+  await AuditService.logAction(
+    req.user?.id ? String(req.user.id) : undefined,
+    'purchase', id, 'UPDATE', existing, result.rows[0],
+    req.ip, req.get('User-Agent')
+  );
 
-    // Log audit
-    await AuditService.logAction(
-      req.user?.id ? String(req.user.id) : undefined,
-      'purchase',
-      id,
-      'UPDATE',
-      existing,
-      result.rows[0],
-      req.ip,
-      req.get('User-Agent')
-    );
-
-    res.json({
-      success: true,
-      data: result.rows[0],
-      message: 'Purchase updated successfully',
-    });
-  } catch (error) {
-    await query('ROLLBACK');
-    throw error;
-  }
+  res.json({
+    success: true,
+    data: result.rows[0],
+    message: 'Purchase updated successfully',
+  });
 }));
 
 // DELETE /purchases/:id — soft delete
 router.delete('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
-  let whereClause = 'WHERE id = ? AND is_deleted = 0';
+  let whereClause = 'WHERE id = ? AND is_deleted = false';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
   const existingPurchase = await query(`SELECT id, status FROM purchase ${filtered.whereClause}`, filtered.params);
@@ -381,8 +355,12 @@ router.delete('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
     throw createError('Purchase not found', 404);
   }
 
+  if (['received', 'billed'].includes(existingPurchase.rows[0].status)) {
+    throw createError('Cannot delete a received or billed purchase', 400);
+  }
+
   await query(
-    'UPDATE purchase SET is_deleted = 1, updated_by = ?, updated_date = NOW() WHERE id = ?',
+    'UPDATE purchase SET is_deleted = true, updated_by = ?, updated_date = NOW() WHERE id = ?',
     [req.user?.id || 1, id]
   );
 
@@ -396,7 +374,7 @@ router.delete('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
 
 // GET /purchases/alerts/pending — list pending purchases
 router.get('/alerts/pending', asyncHandler(async (req: AuthRequest, res: Response) => {
-  let whereClause = "WHERE p.status = 'pending' AND p.is_deleted = 0";
+  let whereClause = "WHERE p.status = 'pending' AND p.is_deleted = false";
   let params: any[] = [];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null, 'p');
   whereClause = filtered.whereClause;
@@ -404,8 +382,8 @@ router.get('/alerts/pending', asyncHandler(async (req: AuthRequest, res: Respons
 
   const result = await query(
     `SELECT p.id, p.purchase_number, p.vendor_id, p.purchase_date, p.total_amount,
-            v.vendor_name, v.vendor_email,
-            DATEDIFF(CURRENT_DATE, p.purchase_date) as days_pending
+            v.name as vendor_name, v.email as vendor_email,
+            (CURRENT_DATE - p.purchase_date::date) as days_pending
      FROM purchase p
      LEFT JOIN vendors v ON p.vendor_id = v.id
      ${whereClause}
@@ -432,12 +410,12 @@ router.post('/:id/email', asyncHandler(async (req: AuthRequest, res: Response) =
   }
 
   // Get purchase with agency filter
-  let whereClause = 'WHERE p.id = ? AND p.is_deleted = 0';
+  let whereClause = 'WHERE p.id = ? AND p.is_deleted = false';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null, 'p');
 
   const purchaseResult = await query(
-    `SELECT p.*, v.vendor_name, v.vendor_email, v.vendor_phone, v.address as vendor_address
+    `SELECT p.*, v.name as vendor_name, v.email as vendor_email, v.phone as vendor_phone, v.address_street as vendor_address
      FROM purchase p
      LEFT JOIN vendors v ON p.vendor_id = v.id
      ${filtered.whereClause}`,
@@ -516,12 +494,12 @@ router.post('/:id/email', asyncHandler(async (req: AuthRequest, res: Response) =
 router.get('/:id/pdf', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
-  let whereClause = 'WHERE p.id = ? AND p.is_deleted = 0';
+  let whereClause = 'WHERE p.id = ? AND p.is_deleted = false';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null, 'p');
 
   const purchaseResult = await query(
-    `SELECT p.*, v.vendor_name, v.vendor_email, v.vendor_phone, v.address as vendor_address
+    `SELECT p.*, v.name as vendor_name, v.email as vendor_email, v.phone as vendor_phone, v.address_street as vendor_address
      FROM purchase p
      LEFT JOIN vendors v ON p.vendor_id = v.id
      ${filtered.whereClause}`,

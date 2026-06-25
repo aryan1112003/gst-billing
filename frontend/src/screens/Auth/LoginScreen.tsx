@@ -20,7 +20,8 @@ import { validateEmail } from '../../utils/validation';
 import { useResponsive } from '../../utils/responsive';
 
 export const LoginScreen: React.FC<{ navigation?: any }> = ({ navigation: navProp }) => {
-  const navigation = navProp || useNavigation<any>();
+  const navFromHook = useNavigation<any>();
+  const navigation = navProp || navFromHook;
   const dispatch = useDispatch();
   const { isMobile, isTablet, isDesktop, rs } = useResponsive();
 

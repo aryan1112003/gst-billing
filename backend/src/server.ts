@@ -45,30 +45,33 @@ const app = express();
 // Trust proxy - Important for getting correct origin
 app.set('trust proxy', 1);
 
-// CORS Configuration - MUST BE FIRST - Simple and bulletproof
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+// CORS Configuration - MUST BE FIRST
+// Dev: allow all origins. Production: allow whitelisted origins OR any origin
+// sharing the same hostname as the backend (frontend on different port, same server).
+const getAllowedHostnames = () =>
+  config.cors.origin.map(o => { try { return new URL(o).hostname; } catch { return ''; } });
 
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-
-  // FIX: allow whatever headers the browser asks for
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    req.headers['access-control-request-headers'] ||
-    'Content-Type, Authorization, X-Requested-With, Accept, Origin'
-  );
-
-  res.setHeader('Access-Control-Expose-Headers', 'Content-Range, X-Content-Range');
-  res.setHeader('Access-Control-Max-Age', '86400');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
-
-  next();
-});
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Expo Go, etc.)
+    if (!origin) return callback(null, true);
+    // Allow all in development
+    if (config.env !== 'production') return callback(null, true);
+    // Exact match
+    if (config.cors.origin.includes(origin)) return callback(null, true);
+    // Same-server match: frontend on port 8081, backend on 8001 — same hostname
+    try {
+      const originHostname = new URL(origin).hostname;
+      if (getAllowedHostnames().includes(originHostname)) return callback(null, true);
+    } catch {}
+    callback(new Error(`CORS: Origin ${origin} not allowed`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400,
+}));
 
 
 // Security middleware - AFTER CORS
@@ -157,8 +160,8 @@ app.get('/api/v1/health', async (_req, res) => {
       environment: process.env.NODE_ENV || 'development',
       version: '1.0.0',
       services: {
-        database: health?.mysql ? 'healthy' : 'unhealthy',
-        redis: health?.redis ? 'healthy' : 'unhealthy',
+        database: health?.postgres ? 'healthy' : 'unhealthy',
+        cache: health?.redis ? 'healthy' : 'N/A',
       }
     });
   } catch (error) {
@@ -264,8 +267,8 @@ const startServer = async () => {
     });
 
     // Handle graceful shutdown
-    // process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    // process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
     return httpServer;
 

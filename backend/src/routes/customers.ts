@@ -25,13 +25,13 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   params = filtered.params;
 
   if (search) {
-    whereClause += ` AND (CONCAT(fname, ' ', lname) LIKE ? OR customer_email LIKE ? OR cwork_phone LIKE ? OR cmobile_phone LIKE ? OR company_name LIKE ?)`;
+    whereClause += ` AND (CONCAT(fname, ' ', lname) ILIKE ? OR customer_email ILIKE ? OR cwork_phone ILIKE ? OR cmobile_phone ILIKE ? OR company_name ILIKE ?)`;
     params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
   }
 
   if (active !== undefined) {
     whereClause += ` AND is_active = ?`;
-    params.push(active === 'true' ? 1 : 0);
+    params.push(active === 'true' ? true : false);
   }
 
   // Get total count
@@ -128,6 +128,21 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
     throw createError('Customer name or company name is required', 400);
   }
 
+  // Validate email format
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw createError('Invalid email format', 400);
+  }
+
+  // Validate GSTIN (Indian GST registration number)
+  if (gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gstin)) {
+    throw createError('Invalid GSTIN format', 400);
+  }
+
+  // Validate phone (allow +countrycode + 7-15 digits)
+  if (phone && !/^\+?[1-9]\d{6,14}$/.test(phone.replace(/[\s\-().]/g, ''))) {
+    throw createError('Invalid phone number format', 400);
+  }
+
   // Split name into first and last name
   const nameParts = (name || company_name || '').trim().split(' ');
   const fname = nameParts[0] || '';
@@ -145,8 +160,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
     }
   }
 
-  // Use user's agency_id (or 0 for system admin)
-  const agencyId = req.user?.agencyId || 0;
+  const agencyId = req.agencyId ?? req.user?.agencyId ?? null;
 
   const result = await query(
     `INSERT INTO customers (
@@ -170,7 +184,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
       gstin || '',
       21, // place_of_supply - default
       21, // currency_id - INR
-      1,  // is_active
+      true,  // is_active
       agencyId,  // agency_id from authenticated user
       req.user?.id || 1,  // created_by
       req.user?.id || 1,  // updated_by
@@ -228,7 +242,10 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
 
   // Check if email already exists for another customer
   if (email) {
-    const emailCheck = await query('SELECT id FROM customers WHERE customer_email = ? AND id != ?', [email, id]);
+    let emailWhere = 'WHERE customer_email = ? AND id != ?';
+    let emailParams: any[] = [email, id];
+    const emailFiltered = addAgencyFilter(emailWhere, emailParams, req.agencyId ?? null);
+    const emailCheck = await query(`SELECT id FROM customers ${emailFiltered.whereClause}`, emailFiltered.params);
     if (emailCheck.rows.length > 0) {
       throw createError('Customer with this email already exists', 400);
     }
@@ -327,7 +344,7 @@ router.delete('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: A
 
   if (parseInt(invoicesCheck.rows[0]?.count ?? 0) > 0 || parseInt(paymentsCheck.rows[0]?.count ?? 0) > 0) {
     // Soft delete — deactivate instead of hard delete
-    await query('UPDATE customers SET is_active = 0, updated_by = ?, updated_date = NOW() WHERE id = ?', [req.user?.id || 1, id]);
+    await query('UPDATE customers SET is_active = false, updated_by = ?, updated_date = NOW() WHERE id = ?', [req.user?.id || 1, id]);
     logger.info('Customer deactivated (has associated records)', { customerId: id });
 
     res.json({

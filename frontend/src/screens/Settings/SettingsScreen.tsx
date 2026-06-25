@@ -33,12 +33,7 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
   const dispatch = useDispatch();
   const { isDarkMode, toggleTheme, colors: themeColors } = useTheme();
   const { isMobile, isTablet, isDesktop, rs } = useResponsive();
-  const user = useSelector((state: RootState) => state.auth.user) || {
-    name: 'Admin User',
-    email: 'admin@mawebtechnologies.com',
-    role: 'admin' as 'admin' | 'agency' | 'user',
-    agencyId: 0
-  };
+  const user = useSelector((state: RootState) => state.auth.user);
 
   const [activeTab, setActiveTab] = useState('profile');
   const [activeSubView, setActiveSubView] = useState<string | null>(null);

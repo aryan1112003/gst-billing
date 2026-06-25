@@ -35,7 +35,7 @@ export const addAgencyFilter = (
   const prefix = tableAlias ? `${tableAlias}.` : '';
   
   // System admin sees all data
-  if (agencyId === null) {
+  if (agencyId == null) {
     return { whereClause, params };
   }
 

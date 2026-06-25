@@ -217,10 +217,24 @@ export const PurchaseFormScreen: React.FC = ({ navigation, route }: any) => {
       Alert.alert('Error', 'Please fill all item details');
       return;
     }
+    if (!purchaseInvoiceNumber) {
+      Alert.alert('Error', 'Purchase Invoice Number is required');
+      return;
+    }
+    if (!purchaseDate) {
+      Alert.alert('Error', 'Purchase Invoice Date is required');
+      return;
+    }
 
     try {
       setLoading(true);
       const total = calculateTotal();
+      const subtotalBeforeTax = lineItems.reduce((sum, item) => {
+        const lineSubtotal = item.quantity * item.unitPrice;
+        const discountAmt = (lineSubtotal * item.discount) / 100;
+        return sum + (lineSubtotal - discountAmt);
+      }, 0);
+      const taxAmountTotal = total - subtotalBeforeTax;
       const purchaseData = {
         vendorId,
         purchaseDate,
@@ -242,9 +256,9 @@ export const PurchaseFormScreen: React.FC = ({ navigation, route }: any) => {
           description: item.description,
           hsnSac: item.hsnSac,
         })),
-        subtotal: total,
-        taxAmount: 0,
-        totalAmount: total,
+        subtotal: parseFloat(subtotalBeforeTax.toFixed(2)),
+        taxAmount: parseFloat(taxAmountTotal.toFixed(2)),
+        totalAmount: parseFloat(total.toFixed(2)),
       };
 
       if (purchaseId) {
@@ -430,8 +444,10 @@ export const PurchaseFormScreen: React.FC = ({ navigation, route }: any) => {
                   onPress={() => setStatusMenuVisible(true)}
                 >
                   <Text style={styles.dropdownText}>
-                    {status === 'pending' ? 'Pending' : 
-                     status === 'received' ? 'Received' : 
+                    {status === 'draft' ? 'Draft' :
+                     status === 'pending' ? 'Pending' :
+                     status === 'received' ? 'Received' :
+                     status === 'billed' ? 'Billed' :
                      status === 'cancelled' ? 'Cancelled' : 'Pending'}
                   </Text>
                   <MaterialIcons name="arrow-drop-down" size={24} color={colors.text.secondary} />
@@ -439,24 +455,23 @@ export const PurchaseFormScreen: React.FC = ({ navigation, route }: any) => {
               }
             >
               <Menu.Item
-                onPress={() => {
-                  setStatus('pending');
-                  setStatusMenuVisible(false);
-                }}
+                onPress={() => { setStatus('draft'); setStatusMenuVisible(false); }}
+                title="Draft"
+              />
+              <Menu.Item
+                onPress={() => { setStatus('pending'); setStatusMenuVisible(false); }}
                 title="Pending"
               />
               <Menu.Item
-                onPress={() => {
-                  setStatus('received');
-                  setStatusMenuVisible(false);
-                }}
+                onPress={() => { setStatus('received'); setStatusMenuVisible(false); }}
                 title="Received"
               />
               <Menu.Item
-                onPress={() => {
-                  setStatus('cancelled');
-                  setStatusMenuVisible(false);
-                }}
+                onPress={() => { setStatus('billed'); setStatusMenuVisible(false); }}
+                title="Billed"
+              />
+              <Menu.Item
+                onPress={() => { setStatus('cancelled'); setStatusMenuVisible(false); }}
                 title="Cancelled"
               />
             </Menu>

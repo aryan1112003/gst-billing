@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { query } from '../config/database';
+import { query, withTransaction } from '../config/database';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { AuthRequest } from '../middleware/auth';
 import { addAgencyFilter } from '../middleware/agencyFilter';
@@ -11,7 +11,7 @@ export class InvoiceController {
     const { search, page = 1, limit = 10, customerId, status, fromDate, toDate, type = 'invoice' } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
-    let whereClause = 'WHERE i.is_deleted = 0';
+    let whereClause = 'WHERE i.is_deleted = false';
     let params: any[] = [];
 
     // Add agency filter
@@ -20,7 +20,7 @@ export class InvoiceController {
     params = filtered.params;
 
     if (search) {
-      whereClause += ` AND (i.invoice_number LIKE ? OR CONCAT(c.fname, ' ', c.lname) LIKE ?)`;
+      whereClause += ` AND (i.invoice_number ILIKE ? OR CONCAT(c.fname, ' ', c.lname) ILIKE ?)`;
       params.push(`%${search}%`, `%${search}%`);
     }
 
@@ -110,7 +110,7 @@ export class InvoiceController {
   static getInvoice = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
-    let whereClause = 'WHERE i.id = ? AND i.is_deleted = 0';
+    let whereClause = 'WHERE i.id = ? AND i.is_deleted = false';
     let params: any[] = [id];
 
     // Add agency filter
@@ -141,7 +141,7 @@ export class InvoiceController {
     let lineItems: any[] = [];
     try {
       const itemsResult = await query(
-        `SELECT ii.*, i.hsn_code as item_hsn_code
+        `SELECT ii.*, i.hsncode as item_hsn_code
          FROM invoice_items ii
          LEFT JOIN items i ON ii.item_id = i.id
          WHERE ii.invoice_id = ?
@@ -265,7 +265,7 @@ export class InvoiceController {
     const totalAmount = parseFloat((subtotal + taxAmount - parseFloat(String(discountAmount))).toFixed(2));
 
     // Get user's agency_id
-    const agencyId = req.user?.agencyId || req.agencyId || 0;
+    const agencyId = req.agencyId ?? req.user?.agencyId ?? null;
 
     // Generate invoice number from settings
     const { agencyService } = await import('../services/agencyService');
@@ -292,11 +292,8 @@ export class InvoiceController {
         nextNumKey = 'invoice_next_number';
     }
 
-    // Start transaction
-    await query('START TRANSACTION');
-
-    try {
-      const invoiceResult = await query(
+    const invoiceId = await withTransaction(async (tq) => {
+      const invoiceResult = await tq(
         `INSERT INTO invoices (
           customer_id,
           invoice_number, invoice_date, due_date, payment_terms, subject,
@@ -304,78 +301,58 @@ export class InvoiceController {
           type, status,
           customer_notes, terms_conditions, agency_id,
           created_by, updated_by, created_date, updated_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, NOW(), NOW())`,
         [
-          customerId,
-          invoiceNumber,
-          issueDate,
-          dueDate || issueDate,
-          paymentTerms || null,
-          subject || null,
-          subtotal.toFixed(2),
-          parseFloat(String(discountAmount)).toFixed(2),
-          taxAmount.toFixed(2),
-          totalAmount.toFixed(2),
-          type,
-          notes || null,
-          termsConditions || null,
-          agencyId || req.user?.agencyId || 1,
-          req.user?.id || 1,
-          req.user?.id || 1,
+          customerId, invoiceNumber, issueDate, dueDate || issueDate,
+          paymentTerms || null, subject || null,
+          subtotal.toFixed(2), parseFloat(String(discountAmount)).toFixed(2),
+          taxAmount.toFixed(2), totalAmount.toFixed(2), type,
+          notes || null, termsConditions || null,
+          agencyId,
+          req.user?.id || 1, req.user?.id || 1,
         ]
       );
 
-      const invoiceId = invoiceResult.insertId;
+      const newInvoiceId = invoiceResult.insertId;
 
-      // Insert line items into invoice_items table
       for (const li of processedLineItems) {
-        await query(
+        await tq(
           `INSERT INTO invoice_items
              (invoice_id, item_id, item_name, description, quantity, unit, rate, discount_percent, tax_rate, amount)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [invoiceId, li.item_id, li.item_name, li.description, li.quantity, li.unit, li.rate, li.discount_percent, li.tax_rate, li.amount]
+          [newInvoiceId, li.item_id, li.item_name, li.description, li.quantity, li.unit, li.rate, li.discount_percent, li.tax_rate, li.amount]
         );
       }
 
-      await query('COMMIT');
+      return newInvoiceId;
+    });
 
-      // Increment document number in settings
-      if (nextNumKey) {
-        try {
-          await agencyService.updateAgencySettings(agencyId, {
-            [nextNumKey]: (currentNextNumber + 1).toString(),
-          });
-        } catch (settingsError) {
-          logger.warn('Failed to increment document number in settings', { settingsError });
-        }
+    // Increment document number in settings
+    if (nextNumKey) {
+      try {
+        await agencyService.updateAgencySettings(agencyId, {
+          [nextNumKey]: (currentNextNumber + 1).toString(),
+        });
+      } catch (settingsError) {
+        logger.warn('Failed to increment document number in settings', { settingsError });
       }
-
-      // Fetch the created invoice to return
-      const invoiceData = await query('SELECT * FROM invoices WHERE id = ?', [invoiceId]);
-      const invoice = invoiceData.rows[0];
-
-      // Log audit
-      await AuditService.logAction(
-        req.user?.id ? String(req.user.id) : undefined,
-        'invoices',
-        invoice.id,
-        'CREATE',
-        null,
-        invoice,
-        req.ip,
-        req.get('User-Agent')
-      );
-
-      logger.info('Invoice created', { invoiceId: invoice.id, invoiceNumber, userId: req.user?.id });
-
-      res.status(201).json({
-        success: true,
-        data: { invoice },
-      });
-    } catch (error) {
-      await query('ROLLBACK');
-      throw error;
     }
+
+    const invoiceData = await query('SELECT * FROM invoices WHERE id = ?', [invoiceId]);
+    const invoice = invoiceData.rows[0];
+
+    await AuditService.logAction(
+      req.user?.id ? String(req.user.id) : undefined,
+      'invoices', invoice.id, 'CREATE', null, invoice,
+      req.ip, req.get('User-Agent')
+    );
+
+    logger.info('Invoice created', { invoiceId: invoice.id, invoiceNumber, userId: req.user?.id });
+
+    res.status(201).json({
+      success: true,
+      data: { invoice },
+    });
   });
 
   static updateInvoice = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -383,7 +360,7 @@ export class InvoiceController {
     const { customerId, issueDate, dueDate, discountAmount, status, notes, lineItems } = req.body;
 
     // Get existing invoice with agency filter
-    let whereClause = 'WHERE id = ? AND is_deleted = 0';
+    let whereClause = 'WHERE id = ? AND is_deleted = false';
     let params: any[] = [id];
     const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
 
@@ -394,90 +371,65 @@ export class InvoiceController {
 
     const existingInvoice = existingResult.rows[0];
 
-    // Don't allow updates to paid invoices
+    // Don't allow updates to paid or cancelled invoices
     if (existingInvoice.status === 'paid') {
       throw createError('Cannot update a paid invoice', 400);
     }
+    if (existingInvoice.status === 'cancelled') {
+      throw createError('Cannot update a cancelled invoice', 400);
+    }
 
-    await query('START TRANSACTION');
+    const updateFields: string[] = [];
+    const updateParams: any[] = [];
+    let newLineItems: any[] | null = null;
 
-    try {
-      const updateFields: string[] = [];
-      const updateParams: any[] = [];
-      let newLineItems: any[] | null = null;
+    if (customerId) { updateFields.push('customer_id = ?'); updateParams.push(customerId); }
+    if (issueDate) { updateFields.push('invoice_date = ?'); updateParams.push(issueDate); }
+    if (dueDate !== undefined) { updateFields.push('due_date = ?'); updateParams.push(dueDate || null); }
+    if (discountAmount !== undefined) { updateFields.push('discount_amount = ?'); updateParams.push(discountAmount); }
+    if (status) { updateFields.push('status = ?'); updateParams.push(status); }
+    if (notes !== undefined) { updateFields.push('customer_notes = ?'); updateParams.push(notes); }
 
-      if (customerId) {
-        updateFields.push('customer_id = ?');
-        updateParams.push(customerId);
-      }
-      if (issueDate) {
-        updateFields.push('invoice_date = ?');
-        updateParams.push(issueDate);
-      }
-      if (dueDate !== undefined) {
-        updateFields.push('due_date = ?');
-        updateParams.push(dueDate || null);
-      }
-      if (discountAmount !== undefined) {
-        updateFields.push('discount_amount = ?');
-        updateParams.push(discountAmount);
-      }
-      if (status) {
-        updateFields.push('status = ?');
-        updateParams.push(status);
-      }
-      if (notes !== undefined) {
-        updateFields.push('customer_notes = ?');
-        updateParams.push(notes);
-      }
+    if (Array.isArray(lineItems) && lineItems.length > 0) {
+      let subtotal = 0;
+      let taxAmount = 0;
+      const processedLineItems = lineItems.map((item: any) => {
+        const qty = parseFloat(item.quantity) || 0;
+        const rate = parseFloat(item.unitPrice) || 0;
+        const discountPct = parseFloat(item.discountPercent) || 0;
+        const taxRate = parseFloat(item.taxRate) || 0;
+        const lineTotal = qty * rate * (1 - discountPct / 100);
+        const lineTax = lineTotal * (taxRate / 100);
+        subtotal += lineTotal;
+        taxAmount += lineTax;
+        return {
+          item_id: item.itemId || null,
+          item_name: item.itemName || item.description || 'Item',
+          description: item.description || '',
+          quantity: qty, unit: item.unit || 'pcs', rate,
+          discount_percent: discountPct, tax_rate: taxRate,
+          amount: parseFloat((lineTotal + lineTax).toFixed(2)),
+        };
+      });
 
-      // Recalculate totals if line items provided
-      if (Array.isArray(lineItems) && lineItems.length > 0) {
-        let subtotal = 0;
-        let taxAmount = 0;
-        const processedLineItems = lineItems.map((item: any) => {
-          const qty = parseFloat(item.quantity) || 0;
-          const rate = parseFloat(item.unitPrice) || 0;
-          const discountPct = parseFloat(item.discountPercent) || 0;
-          const taxRate = parseFloat(item.taxRate) || 0;
-          const lineTotal = qty * rate * (1 - discountPct / 100);
-          const lineTax = lineTotal * (taxRate / 100);
-          subtotal += lineTotal;
-          taxAmount += lineTax;
-          return {
-            item_id: item.itemId || null,
-            item_name: item.itemName || item.description || 'Item',
-            description: item.description || '',
-            quantity: qty,
-            unit: item.unit || 'pcs',
-            rate,
-            discount_percent: discountPct,
-            tax_rate: taxRate,
-            amount: parseFloat((lineTotal + lineTax).toFixed(2)),
-          };
-        });
+      const effectiveDiscount = discountAmount !== undefined ? parseFloat(String(discountAmount)) : parseFloat(existingInvoice.discount_amount ?? 0);
+      const totalAmount = parseFloat((subtotal + taxAmount - effectiveDiscount).toFixed(2));
+      updateFields.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
+      updateParams.push(subtotal.toFixed(2), taxAmount.toFixed(2), totalAmount.toFixed(2));
+      newLineItems = processedLineItems;
+    }
 
-        const effectiveDiscount = discountAmount !== undefined ? parseFloat(String(discountAmount)) : parseFloat(existingInvoice.discount_amount ?? 0);
-        const totalAmount = parseFloat((subtotal + taxAmount - effectiveDiscount).toFixed(2));
+    updateFields.push('updated_by = ?', 'updated_date = NOW()');
+    updateParams.push(req.user?.id || 1);
 
-        updateFields.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
-        updateParams.push(subtotal.toFixed(2), taxAmount.toFixed(2), totalAmount.toFixed(2));
-        newLineItems = processedLineItems;
-      }
-
-      updateFields.push('updated_by = ?', 'updated_date = NOW()');
-      updateParams.push(req.user?.id || 1);
-
+    await withTransaction(async (tq) => {
       if (updateFields.length > 0) {
-        updateParams.push(id);
-        await query(`UPDATE invoices SET ${updateFields.join(', ')} WHERE id = ?`, updateParams);
+        await tq(`UPDATE invoices SET ${updateFields.join(', ')} WHERE id = ?`, [...updateParams, id]);
       }
-
-      // Replace line items in invoice_items table if new ones were provided
       if (newLineItems) {
-        await query('DELETE FROM invoice_items WHERE invoice_id = ?', [id]);
+        await tq('DELETE FROM invoice_items WHERE invoice_id = ?', [id]);
         for (const li of newLineItems) {
-          await query(
+          await tq(
             `INSERT INTO invoice_items
                (invoice_id, item_id, item_name, description, quantity, unit, rate, discount_percent, tax_rate, amount)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -485,40 +437,29 @@ export class InvoiceController {
           );
         }
       }
+    });
 
-      await query('COMMIT');
+    logger.info('Invoice updated', { invoiceId: id, userId: req.user?.id });
 
-      logger.info('Invoice updated', { invoiceId: id, userId: req.user?.id });
+    const updatedResult = await query('SELECT * FROM invoices WHERE id = ?', [id]);
 
-      const updatedResult = await query('SELECT * FROM invoices WHERE id = ?', [id]);
+    await AuditService.logAction(
+      req.user?.id ? String(req.user.id) : undefined,
+      'invoices', id, 'UPDATE', existingInvoice, updatedResult.rows[0],
+      req.ip, req.get('User-Agent')
+    );
 
-      // Log audit
-      await AuditService.logAction(
-        req.user?.id ? String(req.user.id) : undefined,
-        'invoices',
-        id,
-        'UPDATE',
-        existingInvoice,
-        updatedResult.rows[0],
-        req.ip,
-        req.get('User-Agent')
-      );
-
-      res.json({
-        success: true,
-        data: { invoice: updatedResult.rows[0] },
-      });
-    } catch (error) {
-      await query('ROLLBACK');
-      throw error;
-    }
+    res.json({
+      success: true,
+      data: { invoice: updatedResult.rows[0] },
+    });
   });
 
   static deleteInvoice = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     // Get existing invoice with agency filter
-    let whereClause = 'WHERE id = ? AND is_deleted = 0';
+    let whereClause = 'WHERE id = ? AND is_deleted = false';
     let params: any[] = [id];
     const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
 
@@ -534,39 +475,26 @@ export class InvoiceController {
       throw createError('Cannot delete a paid invoice', 400);
     }
 
-    await query('START TRANSACTION');
-
-    try {
-      // Soft delete
-      await query(
-        'UPDATE invoices SET is_deleted = 1, updated_by = ?, updated_date = NOW() WHERE id = ?',
+    await withTransaction(async (tq) => {
+      await tq('DELETE FROM invoice_items WHERE invoice_id = ?', [id]);
+      await tq(
+        'UPDATE invoices SET is_deleted = true, updated_by = ?, updated_date = NOW() WHERE id = ?',
         [req.user?.id || 1, id]
       );
+    });
 
-      // Log audit
-      await AuditService.logAction(
-        req.user?.id ? String(req.user.id) : undefined,
-        'invoices',
-        id,
-        'DELETE',
-        existingInvoice,
-        null,
-        req.ip,
-        req.get('User-Agent')
-      );
+    await AuditService.logAction(
+      req.user?.id ? String(req.user.id) : undefined,
+      'invoices', id, 'DELETE', existingInvoice, null,
+      req.ip, req.get('User-Agent')
+    );
 
-      await query('COMMIT');
+    logger.info('Invoice deleted', { invoiceId: id, userId: req.user?.id });
 
-      logger.info('Invoice deleted', { invoiceId: id, userId: req.user?.id });
-
-      res.json({
-        success: true,
-        message: 'Invoice deleted successfully',
-      });
-    } catch (error) {
-      await query('ROLLBACK');
-      throw error;
-    }
+    res.json({
+      success: true,
+      message: 'Invoice deleted successfully',
+    });
   });
 
   // Email invoice with PDF
@@ -579,7 +507,7 @@ export class InvoiceController {
     }
 
     // Get invoice with agency filter
-    let whereClause = 'WHERE i.id = ? AND i.is_deleted = 0';
+    let whereClause = 'WHERE i.id = ? AND i.is_deleted = false';
     let params: any[] = [id];
     const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null, 'i');
 
@@ -642,7 +570,7 @@ export class InvoiceController {
     const { id } = req.params;
 
     // Verify invoice exists with agency filter
-    let whereClause = 'WHERE id = ? AND is_deleted = 0';
+    let whereClause = 'WHERE id = ? AND is_deleted = false';
     let params: any[] = [id];
     const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
 

@@ -1,29 +1,44 @@
 import { Platform } from 'react-native';
 
 // API Configuration
-const BASE_SERVER_URL = Platform.select({
-  web: 'http://localhost:8001',
-  android: 'http://192.168.1.11:8001',
-  ios: 'http://localhost:8001',
-  default: 'http://localhost:8001',
-}) || 'http://localhost:8001';
+// Web: auto-detect hostname from browser so the same build works on both
+//   localhost (dev) and any server IP/domain (production) without code changes.
+// Mobile: use EXPO_PUBLIC_API_URL env var; falls back to localhost for emulator.
+const getBaseServerUrl = (): string => {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:8001`;
+  }
+  // Mobile (Android physical device, iOS) — set EXPO_PUBLIC_API_URL to your machine/server IP
+  return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8001';
+};
 
+const BASE_SERVER_URL = getBaseServerUrl();
 const API_BASE_URL = `${BASE_SERVER_URL}/api/v1`;
 
 export { BASE_SERVER_URL };
 
-// Helper function to get auth token
-let authToken: string | null = null;
+// Helper function to get auth token (persisted in localStorage for web)
+const TOKEN_KEY = 'erp_auth_token';
+let authToken: string | null = (() => {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+  } catch {
+    return null;
+  }
+})();
 
 export const setAuthToken = (token: string | null) => {
   authToken = token;
-  console.log('🔑 API Token Set:', token ? `${token.substring(0, 20)}...` : 'null');
+  try {
+    if (typeof localStorage !== 'undefined') {
+      if (token) localStorage.setItem(TOKEN_KEY, token);
+      else localStorage.removeItem(TOKEN_KEY);
+    }
+  } catch {}
 };
 
-export const getAuthToken = () => {
-  console.log('🔑 API Token Get:', authToken ? `${authToken.substring(0, 20)}...` : 'null');
-  return authToken;
-};
+export const getAuthToken = () => authToken;
 
 // Helper function for API calls
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
@@ -50,17 +65,7 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
   // Add auth token if available
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;
-    console.log('🔐 API Call with Auth:', endpoint, `Token: ${authToken.substring(0, 20)}...`);
-  } else {
-    console.warn('⚠️ API Call WITHOUT Auth:', endpoint);
   }
-
-  console.log('📡 API Request:', {
-    url: `${API_BASE_URL}${endpoint}`,
-    method: options.method || 'GET',
-    hasAuth: !!authToken,
-    headers: headers
-  });
 
   let response;
   try {
@@ -70,12 +75,6 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
       cache: 'no-store', // Disable fetch cache
     });
 
-    console.log('📡 API Response:', {
-      url: `${API_BASE_URL}${endpoint}`,
-      status: response.status,
-      ok: response.ok,
-      statusText: response.statusText
-    });
   } catch (fetchError) {
     console.error('❌ Fetch Error:', {
       endpoint,
@@ -86,12 +85,10 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
   }
 
   if (!response.ok) {
+    if (response.status === 401) {
+      setAuthToken(null);
+    }
     const error = await response.json().catch(() => ({ message: 'Request failed' }));
-    console.error('❌ API Error:', {
-      endpoint,
-      status: response.status,
-      error
-    });
     throw new Error(error.message || `HTTP ${response.status}`);
   }
 
@@ -359,13 +356,15 @@ export const vendorsAPI = {
 
 // Invoices API
 export const invoicesAPI = {
-  getAll: async (params?: { page?: number; limit?: number; search?: string; status?: string; type?: string }) => {
+  getAll: async (params?: { page?: number; limit?: number; search?: string; status?: string; type?: string; customerId?: string; customer_id?: string }) => {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.search) queryParams.append('search', params.search);
     if (params?.status) queryParams.append('status', params.status);
     if (params?.type) queryParams.append('type', params.type);
+    if (params?.customerId) queryParams.append('customerId', params.customerId);
+    if (params?.customer_id) queryParams.append('customerId', params.customer_id);
 
     return apiCall(`/invoices?${queryParams.toString()}`);
   },

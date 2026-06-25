@@ -87,6 +87,11 @@ export const ExpenseFormScreen: React.FC = ({ route, navigation }: any) => {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert('Error', 'Amount must be a positive number');
+      return;
+    }
 
     try {
       setLoading(true);

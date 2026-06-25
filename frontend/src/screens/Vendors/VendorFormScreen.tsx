@@ -4,6 +4,7 @@ import { TextInput, Button, Text, RadioButton } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MainLayout } from '../../components/Layout/MainLayout';
 import { SearchableDropdown } from '../../components/Common/SearchableDropdown';
+import { PhoneInput } from '../../components/Common/PhoneInput';
 import { colors } from '../../theme/colors';
 import { vendorsAPI } from '../../services/api';
 import { useResponsive } from '../../utils/responsive';
@@ -13,11 +14,12 @@ export const VendorFormScreen: React.FC = ({ route, navigation }: any) => {
   const isEditing = !!vendorId;
   const { isMobile, isTablet, rs } = useResponsive();
   const [loading, setLoading] = useState(false);
+  const [phoneValid, setPhoneValid] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    category: isSupplier ? 'Supplier' : 'Supplier',
+    category: isSupplier ? 'Supplier' : 'Service Provider',
     address: '',
     city: '',
     pinCode: '',
@@ -67,8 +69,16 @@ export const VendorFormScreen: React.FC = ({ route, navigation }: any) => {
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.email || !formData.phone) {
-      Alert.alert('Validation Error', 'Please fill in all required fields');
+    if (!formData.name) {
+      Alert.alert('Validation Error', 'Vendor name is required');
+      return;
+    }
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      Alert.alert('Validation Error', 'Invalid email format');
+      return;
+    }
+    if (formData.phone && !phoneValid) {
+      Alert.alert('Validation Error', 'Invalid phone number for the selected country');
       return;
     }
 
@@ -122,7 +132,7 @@ export const VendorFormScreen: React.FC = ({ route, navigation }: any) => {
             {/* Email + Phone row */}
             <View style={{ flexDirection: rs('column', 'row', 'row') as any, gap: 12 }}>
               <TextInput
-                label="Email *"
+                label="Email"
                 mode="outlined"
                 style={[styles.input, { flex: 1 }]}
                 keyboardType="email-address"
@@ -131,15 +141,16 @@ export const VendorFormScreen: React.FC = ({ route, navigation }: any) => {
                 onChangeText={(text) => setFormData({ ...formData, email: text })}
               />
 
-              <TextInput
-                label="Phone *"
-                mode="outlined"
-                style={[styles.input, { flex: 1 }]}
-                keyboardType="phone-pad"
-                placeholder="+91 9876543210"
-                value={formData.phone}
-                onChangeText={(text) => setFormData({ ...formData, phone: text })}
-              />
+              <View style={{ flex: 1 }}>
+                <PhoneInput
+                  label="Phone"
+                  value={formData.phone}
+                  onChangePhone={(fullPhone, isValid) => {
+                    setFormData({ ...formData, phone: fullPhone });
+                    setPhoneValid(isValid || !fullPhone);
+                  }}
+                />
+              </View>
             </View>
 
             <View style={styles.section}>

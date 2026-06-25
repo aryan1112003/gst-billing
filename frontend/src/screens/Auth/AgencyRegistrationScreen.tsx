@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useResponsive } from '../../utils/responsive';
 import { TextInput, ProgressBar } from 'react-native-paper';
+import { PhoneInput } from '../../components/Common/PhoneInput';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { publicAPI } from '../../services/api';
@@ -75,9 +76,28 @@ export const AgencyRegistrationScreen = ({ navigation }: any) => {
         setLoading(true);
         try {
             const response = await publicAPI.registerAgency(formData);
-            if (response.success && response.data.requiresVerification) {
-                setUserId(response.data.userId);
-                setShowOtp(true);
+            if (response.success) {
+                if (response.data.requiresVerification) {
+                    setUserId(response.data.userId);
+                    setShowOtp(true);
+                } else if (response.data.token) {
+                    dispatch(loginSuccess({
+                        user: {
+                            id: String(response.data.user.id),
+                            email: response.data.user.email,
+                            name: response.data.user.username,
+                            role: response.data.user.role,
+                            agencyId: response.data.user.agencyId,
+                            isTrial: response.data.user?.isTrial,
+                            trialEndsAt: response.data.user?.trialEndsAt,
+                            permissions: ['read', 'write', 'delete'],
+                            isActive: true,
+                            createdAt: new Date(),
+                            updatedAt: new Date(),
+                        },
+                        token: response.data.token,
+                    }));
+                }
             }
         } catch (error: any) {
             Alert.alert('Registration Failed', error.message || 'Please try again');
@@ -141,7 +161,7 @@ export const AgencyRegistrationScreen = ({ navigation }: any) => {
     };
 
     const handleBack = () => {
-        if (showOtp) setShowOtp(false);
+        if (showOtp) { setShowOtp(false); setOtp(''); }
         else if (step > 1) setStep(1);
         else navigation.goBack();
     };
@@ -370,18 +390,18 @@ export const AgencyRegistrationScreen = ({ navigation }: any) => {
                                     </>
                                 ) : (
                                     <>
-                                        <TextInput
+                                        <PhoneInput
                                             label="Phone Number"
                                             value={formData.phone}
-                                            onChangeText={(t) => setFormData({ ...formData, phone: t })}
-                                            mode="outlined"
-                                            style={styles.input}
-                                            keyboardType="phone-pad"
-                                            outlineColor="#E8EAEC"
-                                            activeOutlineColor="#068B5E"
+                                            onChangePhone={(fullPhone, isValid) => {
+                                                setFormData({ ...formData, phone: fullPhone });
+                                            }}
+                                            activeColor="#068B5E"
+                                            borderColor="#E8EAEC"
+                                            selectorBg="#F3F4F5"
                                             textColor="#191919"
-                                            theme={INPUT_THEME}
-                                            left={<TextInput.Icon icon="phone" color="#929598" />}
+                                            labelColor="#929598"
+                                            style={styles.input}
                                         />
 
                                         <TextInput

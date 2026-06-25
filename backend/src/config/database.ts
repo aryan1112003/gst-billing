@@ -141,6 +141,32 @@ export const agencyQuery = async (_agencyId: number, text: string, params?: any[
   return query(text, params);
 };
 
+// Transaction helper — acquires a dedicated PoolClient so all queries run on the same connection
+export const withTransaction = async <T>(fn: (clientQuery: typeof query) => Promise<T>): Promise<T> => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const clientQuery = async (text: string, params?: any[]): Promise<any> => {
+      const prepared = prepareQuery(text, params);
+      const result = await client.query(prepared.text, prepared.params);
+      return {
+        rows: result.rows,
+        rowCount: result.rowCount ?? 0,
+        insertId: result.rows?.[0]?.id ?? null,
+        affectedRows: result.rowCount ?? 0,
+      };
+    };
+    const result = await fn(clientQuery);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 // Redis helpers (unchanged)
 export const setCache = async (key: string, value: any, expireInSeconds?: number): Promise<void> => {
   try {

@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { agencyFilter, addAgencyFilter } from '../middleware/agencyFilter';
-import { query } from '../config/database';
+import { query, withTransaction } from '../config/database';
 import { logger } from '../config/logger';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 
@@ -25,7 +25,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   params = filtered.params;
 
   if (search) {
-    whereClause += ` AND (p.reference LIKE ? OR CONCAT(c.fname, ' ', c.lname) LIKE ?)`;
+    whereClause += ` AND (p.reference ILIKE ? OR CONCAT(c.fname, ' ', c.lname) ILIKE ?)`;
     params.push(`%${search}%`, `%${search}%`);
   }
 
@@ -81,6 +81,48 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
       totalPages: Math.ceil(total / Number(limit)),
       total,
       limit: Number(limit)
+    }
+  });
+}));
+
+// Get customer outstanding balance — must be BEFORE /:id to avoid shadowing
+router.get('/customer/:customerId/outstanding', asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { customerId } = req.params;
+
+  let whereClause1 = 'WHERE customer_id = ? AND is_deleted = false';
+  let params1: any[] = [customerId];
+  const filtered1 = addAgencyFilter(whereClause1, params1, req.agencyId ?? null);
+
+  let whereClause2 = 'WHERE customer_id = ?';
+  let params2: any[] = [customerId];
+  const filtered2 = addAgencyFilter(whereClause2, params2, req.agencyId ?? null);
+
+  const invoicesResult = await query(
+    `SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total_invoiced
+     FROM invoices ${filtered1.whereClause}`,
+    filtered1.params
+  );
+
+  let totalPaid = 0;
+  try {
+    const paymentsResult = await query(
+      `SELECT COALESCE(SUM(CAST(amount_used_in_payment AS DECIMAL(10,2))), 0) as total_paid
+       FROM payments_received ${filtered2.whereClause}`,
+      filtered2.params
+    );
+    totalPaid = parseFloat(paymentsResult.rows[0]?.total_paid || 0);
+  } catch {}
+
+  const totalInvoiced = parseFloat(invoicesResult.rows[0]?.total_invoiced || 0);
+  const outstanding = totalInvoiced - totalPaid;
+
+  res.json({
+    success: true,
+    data: {
+      customer_id: customerId,
+      total_invoiced: totalInvoiced,
+      total_paid: totalPaid,
+      outstanding_balance: outstanding
     }
   });
 }));
@@ -152,7 +194,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
   }
 
   // Get user's agency_id
-  const agencyId = req.user?.agencyId || 0;
+  const agencyId = req.agencyId ?? req.user?.agencyId ?? null;
 
   // Verify customer exists in same agency
   let whereClause = 'WHERE id = ?';
@@ -174,84 +216,62 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
   }
 
   const amountExcess = amountReceived - amountUsed;
+  const userId = req.user?.id || 1;
 
-  // Start transaction
-  await query('START TRANSACTION');
-
-  try {
-    // Create payment with agency_id
-    const result = await query(
+  const insertId = await withTransaction(async (tq) => {
+    const result = await tq(
       `INSERT INTO payments_received (
         customer_id, amount, bank_charges, reference, payment_date,
         payment, payment_mode, tax_deducted, withholding_amount,
         amount_received, amount_used_in_payment, amount_refund, amount_excess,
         agency_id, created_by, created_date, updated_by, updated_date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, '0', ?, ?, '0', ?, ?, ?, NOW(), ?, NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, false, '0', ?, ?, '0', ?, ?, ?, NOW(), ?, NOW())`,
       [
-        customer_id,
-        amount,
-        bank_charges,
-        reference_number || '',
-        payment_date,
-        amount, // payment field
-        payment_method,
-        amountReceived,
-        amountUsed,
-        amountExcess,
-        agencyId,  // Use user's agency_id
-        req.user?.id || 1,
-        req.user?.id || 1
+        customer_id, amount, bank_charges, reference_number || '',
+        payment_date, amount, payment_method,
+        amountReceived, amountUsed, amountExcess,
+        agencyId, userId, userId
       ]
     );
 
-    const insertId = result.insertId;
+    const newId = result.insertId;
 
-    // Create invoice allocations if provided
     if (invoice_allocations && invoice_allocations.length > 0) {
       for (const allocation of invoice_allocations) {
-        await query(
+        await tq(
           `INSERT INTO invoice_payments (
             invoice_id, customer_id, payment_id, invoice_balanced_amount,
             withholding_tax, paid_amount, remaining_balance,
             agency_id, created_by, created_date, updated_by, updated_date
           ) VALUES (?, ?, ?, ?, '0', ?, ?, ?, ?, NOW(), ?, NOW())`,
           [
-            allocation.invoice_id,
-            customer_id,
-            insertId,
-            allocation.invoice_balance || 0,
-            allocation.amount,
+            allocation.invoice_id, customer_id, newId,
+            allocation.invoice_balance || 0, allocation.amount,
             allocation.remaining_balance || 0,
-            agencyId,  // Use user's agency_id
-            req.user?.id || 1,
-            req.user?.id || 1
+            agencyId, userId, userId
           ]
         );
       }
     }
 
-    await query('COMMIT');
+    return newId;
+  });
 
-    // Fetch created payment
-    const paymentResult = await query(
-      `SELECT p.*, CONCAT(c.fname, ' ', c.lname) as customer_name 
-       FROM payments_received p 
-       JOIN customers c ON p.customer_id = c.id 
-       WHERE p.id = ?`,
-      [insertId]
-    );
+  const paymentResult = await query(
+    `SELECT p.*, CONCAT(c.fname, ' ', c.lname) as customer_name
+     FROM payments_received p
+     JOIN customers c ON p.customer_id = c.id
+     WHERE p.id = ?`,
+    [insertId]
+  );
 
-    logger.info('Payment created', { paymentId: insertId, customer_id, amount });
+  logger.info('Payment created', { paymentId: insertId, customer_id, amount });
 
-    res.status(201).json({
-      success: true,
-      data: paymentResult.rows[0],
-      message: 'Payment created successfully'
-    });
-  } catch (error) {
-    await query('ROLLBACK');
-    throw error;
-  }
+  res.status(201).json({
+    success: true,
+    data: paymentResult.rows[0],
+    message: 'Payment created successfully'
+  });
 }));
 
 // Update payment (mawebtec_lms format)
@@ -372,27 +392,17 @@ router.delete('/:id', authorize(['admin']), asyncHandler(async (req: AuthRequest
     throw createError('Payment not found', 404);
   }
 
-  await query('START TRANSACTION');
+  await withTransaction(async (tq) => {
+    await tq('DELETE FROM invoice_payments WHERE payment_id = ?', [id]);
+    await tq('DELETE FROM payments_received WHERE id = ?', [id]);
+  });
 
-  try {
-    // Delete invoice allocations first
-    await query('DELETE FROM invoice_payments WHERE payment_id = ?', [id]);
+  logger.info('Payment deleted', { paymentId: id });
 
-    // Delete payment
-    await query('DELETE FROM payments_received WHERE id = ?', [id]);
-
-    await query('COMMIT');
-
-    logger.info('Payment deleted', { paymentId: id });
-
-    res.json({
-      success: true,
-      message: 'Payment deleted successfully'
-    });
-  } catch (error) {
-    await query('ROLLBACK');
-    throw error;
-  }
+  res.json({
+    success: true,
+    message: 'Payment deleted successfully'
+  });
 }));
 
 // Email payment receipt
@@ -459,49 +469,6 @@ router.post('/:id/email', authorize(['admin', 'agency']), asyncHandler(async (re
   res.json({
     success: true,
     message: 'Payment receipt sent successfully'
-  });
-}));
-
-// Get customer outstanding balance
-router.get('/customer/:customerId/outstanding', asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { customerId } = req.params;
-
-  let whereClause1 = 'WHERE customer_id = ? AND is_deleted = 0';
-  let params1: any[] = [customerId];
-  const filtered1 = addAgencyFilter(whereClause1, params1, req.agencyId ?? null);
-
-  let whereClause2 = 'WHERE customer_id = ?';
-  let params2: any[] = [customerId];
-  const filtered2 = addAgencyFilter(whereClause2, params2, req.agencyId ?? null);
-
-  // Get total invoices amount
-  const invoicesResult = await query(
-    `SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total_invoiced
-     FROM invoices 
-     ${filtered1.whereClause}`,
-    filtered1.params
-  );
-
-  // Get total payments received
-  const paymentsResult = await query(
-    `SELECT COALESCE(SUM(CAST(amount_used_in_payment AS DECIMAL(10,2))), 0) as total_paid
-     FROM payments_received 
-     ${filtered2.whereClause}`,
-    filtered2.params
-  );
-
-  const totalInvoiced = parseFloat(invoicesResult.rows[0]?.total_invoiced || 0);
-  const totalPaid = parseFloat(paymentsResult.rows[0]?.total_paid || 0);
-  const outstanding = totalInvoiced - totalPaid;
-
-  res.json({
-    success: true,
-    data: {
-      customer_id: customerId,
-      total_invoiced: totalInvoiced,
-      total_paid: totalPaid,
-      outstanding_balance: outstanding
-    }
   });
 }));
 
