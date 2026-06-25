@@ -2,13 +2,13 @@ import Stripe from 'stripe';
 import { logger } from '../config/logger';
 
 class StripeService {
-    private stripe: Stripe;
+    private stripe: Stripe | null = null;
 
     constructor() {
         const apiKey = process.env.STRIPE_SECRET_KEY;
         if (!apiKey) {
-            logger.warn('⚠️ Stripe API key not configured');
-            throw new Error('Stripe API key is required');
+            logger.warn('⚠️ Stripe API key not configured — Stripe features disabled');
+            return;
         }
 
         this.stripe = new Stripe(apiKey, {
@@ -17,6 +17,11 @@ class StripeService {
         });
 
         logger.info('✅ Stripe service initialized');
+    }
+
+    private getStripe(): Stripe {
+        if (!this.stripe) throw new Error('Stripe is not configured (STRIPE_SECRET_KEY missing)');
+        return this.stripe;
     }
 
     /**
@@ -28,7 +33,7 @@ class StripeService {
         metadata?: Record<string, string>;
     }): Promise<Stripe.Customer> {
         try {
-            const customer = await this.stripe.customers.create({
+            const customer = await this.getStripe().customers.create({
                 email: params.email,
                 name: params.name,
                 metadata: params.metadata || {},
@@ -52,7 +57,7 @@ class StripeService {
         metadata?: Record<string, any>;
     }): Promise<Stripe.PaymentIntent> {
         try {
-            const paymentIntent = await this.stripe.paymentIntents.create({
+            const paymentIntent = await this.getStripe().paymentIntents.create({
                 amount: params.amount,
                 currency: params.currency || process.env.STRIPE_CURRENCY || 'inr',
                 customer: params.customerId,
@@ -80,7 +85,7 @@ class StripeService {
         metadata?: Record<string, any>;
     }): Promise<Stripe.Subscription> {
         try {
-            const subscription = await this.stripe.subscriptions.create({
+            const subscription = await this.getStripe().subscriptions.create({
                 customer: params.customerId,
                 items: [{ price: params.priceId }],
                 trial_period_days: params.trialPeriodDays,
@@ -105,7 +110,7 @@ class StripeService {
         cancelAtPeriodEnd: boolean = true
     ): Promise<Stripe.Subscription> {
         try {
-            const subscription = await this.stripe.subscriptions.update(subscriptionId, {
+            const subscription = await this.getStripe().subscriptions.update(subscriptionId, {
                 cancel_at_period_end: cancelAtPeriodEnd,
             });
 
@@ -126,9 +131,9 @@ class StripeService {
         prorationBehavior?: 'create_prorations' | 'none' | 'always_invoice';
     }): Promise<Stripe.Subscription> {
         try {
-            const subscription = await this.stripe.subscriptions.retrieve(params.subscriptionId);
+            const subscription = await this.getStripe().subscriptions.retrieve(params.subscriptionId);
 
-            const updatedSubscription = await this.stripe.subscriptions.update(params.subscriptionId, {
+            const updatedSubscription = await this.getStripe().subscriptions.update(params.subscriptionId, {
                 items: [{
                     id: subscription.items.data[0].id,
                     price: params.newPriceId,
@@ -149,7 +154,7 @@ class StripeService {
      */
     async retrievePaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
         try {
-            return await this.stripe.paymentIntents.retrieve(paymentIntentId);
+            return await this.getStripe().paymentIntents.retrieve(paymentIntentId);
         } catch (error) {
             logger.error('❌ Failed to retrieve payment intent:', error);
             throw error;
@@ -161,7 +166,7 @@ class StripeService {
      */
     async retrieveSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
         try {
-            return await this.stripe.subscriptions.retrieve(subscriptionId);
+            return await this.getStripe().subscriptions.retrieve(subscriptionId);
         } catch (error) {
             logger.error('❌ Failed to retrieve subscription:', error);
             throw error;
@@ -178,7 +183,7 @@ class StripeService {
         }
 
         try {
-            return this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+            return this.getStripe().webhooks.constructEvent(payload, signature, webhookSecret);
         } catch (error) {
             logger.error('❌ Webhook signature verification failed:', error);
             throw error;
