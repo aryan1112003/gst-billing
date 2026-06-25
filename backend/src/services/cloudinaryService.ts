@@ -11,11 +11,11 @@ import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import { Readable } from 'stream';
 
-// Configure Cloudinary with credentials from .env
+// Configure Cloudinary with credentials from .env (required — no hardcoded fallbacks)
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'duauqfclh',
-  api_key:    process.env.CLOUDINARY_API_KEY    || '699167182274137',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'IUUrxkdnndxUlKN2TUoQmw_6LGY',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true,
 });
 
