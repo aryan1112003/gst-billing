@@ -3,10 +3,11 @@ module.exports = {
   apps: [{
     name: 'erp-api',
     script: './dist/server.js',
-    instances: 'max', // Use all CPU cores
-    exec_mode: 'cluster', // Enable cluster mode
-    watch: false, // Disable in production
-    max_memory_restart: '1G', // Restart if memory exceeds 1GB
+    cwd: '/home/ubuntu/gst-billing/backend',
+    instances: 2,
+    exec_mode: 'cluster',
+    watch: false,
+    max_memory_restart: '512M',
     env: {
       NODE_ENV: 'production',
       PORT: 8001
@@ -27,7 +28,6 @@ module.exports = {
     // Performance optimizations
     listen_timeout: 10000,
     kill_timeout: 5000,
-    wait_ready: true,
     // Monitoring
     instance_var: 'INSTANCE_ID',
   }]

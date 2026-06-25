@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
+import path from 'path';
 
-// Load environment variables
-dotenv.config();
+// Load .env from the backend root, regardless of CWD (critical for PM2 cluster mode)
+dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
 
 export const config = {
   // Server configuration
