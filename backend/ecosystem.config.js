@@ -9,11 +9,11 @@ module.exports = {
     max_memory_restart: '1G', // Restart if memory exceeds 1GB
     env: {
       NODE_ENV: 'production',
-      PORT: 5000
+      PORT: 8001
     },
     env_development: {
       NODE_ENV: 'development',
-      PORT: 5000
+      PORT: 8001
     },
     // Advanced PM2 features
     min_uptime: '10s', // Min uptime before considering app stable
