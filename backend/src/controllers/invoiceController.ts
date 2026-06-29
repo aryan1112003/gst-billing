@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+﻿import { Request, Response } from 'express';
 import { query, withTransaction } from '../config/database';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { AuthRequest } from '../middleware/auth';
@@ -11,7 +11,7 @@ export class InvoiceController {
     const { search, page = 1, limit = 10, customerId, status, fromDate, toDate, type = 'invoice' } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
-    let whereClause = 'WHERE i.is_deleted = false';
+    let whereClause = 'WHERE i.is_deleted = 0';
     let params: any[] = [];
 
     // Add agency filter
@@ -110,7 +110,7 @@ export class InvoiceController {
   static getInvoice = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
-    let whereClause = 'WHERE i.id = ? AND i.is_deleted = false';
+    let whereClause = 'WHERE i.id = ? AND i.is_deleted = 0';
     let params: any[] = [id];
 
     // Add agency filter
@@ -269,7 +269,7 @@ export class InvoiceController {
 
     // Generate invoice number from settings
     const { agencyService } = await import('../services/agencyService');
-    const settings = await agencyService.getAgencySettings(agencyId);
+    const settings = await agencyService.getAgencySettings(agencyId!);
 
     let invoiceNumber: string;
     let nextNumKey = '';
@@ -330,7 +330,7 @@ export class InvoiceController {
     // Increment document number in settings
     if (nextNumKey) {
       try {
-        await agencyService.updateAgencySettings(agencyId, {
+        await agencyService.updateAgencySettings(agencyId!, {
           [nextNumKey]: (currentNextNumber + 1).toString(),
         });
       } catch (settingsError) {
@@ -360,7 +360,7 @@ export class InvoiceController {
     const { customerId, issueDate, dueDate, discountAmount, status, notes, lineItems } = req.body;
 
     // Get existing invoice with agency filter
-    let whereClause = 'WHERE id = ? AND is_deleted = false';
+    let whereClause = 'WHERE id = ? AND is_deleted = 0';
     let params: any[] = [id];
     const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
 
@@ -459,7 +459,7 @@ export class InvoiceController {
     const { id } = req.params;
 
     // Get existing invoice with agency filter
-    let whereClause = 'WHERE id = ? AND is_deleted = false';
+    let whereClause = 'WHERE id = ? AND is_deleted = 0';
     let params: any[] = [id];
     const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
 
@@ -478,7 +478,7 @@ export class InvoiceController {
     await withTransaction(async (tq) => {
       await tq('DELETE FROM invoice_items WHERE invoice_id = ?', [id]);
       await tq(
-        'UPDATE invoices SET is_deleted = true, updated_by = ?, updated_date = NOW() WHERE id = ?',
+        'UPDATE invoices SET is_deleted = 1, updated_by = ?, updated_date = NOW() WHERE id = ?',
         [req.user?.id || 1, id]
       );
     });
@@ -507,7 +507,7 @@ export class InvoiceController {
     }
 
     // Get invoice with agency filter
-    let whereClause = 'WHERE i.id = ? AND i.is_deleted = false';
+    let whereClause = 'WHERE i.id = ? AND i.is_deleted = 0';
     let params: any[] = [id];
     const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null, 'i');
 
@@ -523,7 +523,7 @@ export class InvoiceController {
 
     const invoice = invoiceResult.rows[0];
 
-    logger.info('📧 Generating PDF and sending invoice email...', {
+    logger.info('ðŸ“§ Generating PDF and sending invoice email...', {
       invoiceId: id,
       invoiceNumber: invoice.invoice_number,
       to,
@@ -532,9 +532,9 @@ export class InvoiceController {
     const { PDFService } = await import('../services/pdfService');
     const { emailService } = await import('../services/emailService');
 
-    logger.info('📄 Generating PDF for invoice...', { invoiceId: id });
+    logger.info('ðŸ“„ Generating PDF for invoice...', { invoiceId: id });
     const pdfBuffer = await PDFService.generateInvoicePDF(Number(id));
-    logger.info('✅ PDF generated successfully', { size: pdfBuffer.length });
+    logger.info('âœ… PDF generated successfully', { size: pdfBuffer.length });
 
     try {
       const docType = invoice.type || 'invoice';
@@ -553,14 +553,14 @@ export class InvoiceController {
         type: docType,
       });
 
-      logger.info(`✅ ${docTypeLabel} emailed successfully`, { invoiceId: id, to });
+      logger.info(`âœ… ${docTypeLabel} emailed successfully`, { invoiceId: id, to });
 
       res.json({
         success: true,
         message: `${docTypeLabel} sent successfully via email`,
       });
     } catch (error: any) {
-      logger.error('❌ Failed to send invoice email', { error: error.message });
+      logger.error('âŒ Failed to send invoice email', { error: error.message });
       throw createError(error.message || 'Failed to send email. Please check SMTP configuration.', 500);
     }
   });
@@ -570,7 +570,7 @@ export class InvoiceController {
     const { id } = req.params;
 
     // Verify invoice exists with agency filter
-    let whereClause = 'WHERE id = ? AND is_deleted = false';
+    let whereClause = 'WHERE id = ? AND is_deleted = 0';
     let params: any[] = [id];
     const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
 
@@ -582,12 +582,12 @@ export class InvoiceController {
 
     const invoiceNumber = invoiceResult.rows[0].invoice_number;
 
-    logger.info('📄 Generating PDF for download...', { invoiceId: id, invoiceNumber });
+    logger.info('ðŸ“„ Generating PDF for download...', { invoiceId: id, invoiceNumber });
 
     const { PDFService } = await import('../services/pdfService');
     const pdfBuffer = await PDFService.generateInvoicePDF(Number(id));
 
-    logger.info('✅ PDF generated successfully', { size: pdfBuffer.length });
+    logger.info('âœ… PDF generated successfully', { size: pdfBuffer.length });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoiceNumber}.pdf`);
@@ -595,3 +595,4 @@ export class InvoiceController {
     res.send(pdfBuffer);
   });
 }
+

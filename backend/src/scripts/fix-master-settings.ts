@@ -1,4 +1,4 @@
-import { query } from '../config/database';
+﻿import { query } from '../config/database';
 
 async function run() {
     try {
@@ -11,7 +11,7 @@ async function run() {
         setting_type VARCHAR(50) DEFAULT 'string',
         description TEXT,
         updated_by INT DEFAULT NULL,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        updated_date DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_setting_key (setting_key)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
@@ -33,7 +33,7 @@ async function run() {
             );
         }
 
-        console.log('✓ Settings table fixed in master database');
+        console.log('âœ“ Settings table fixed in master database');
     } catch (error) {
         console.error('Failed to fix settings:', error);
     }
@@ -41,3 +41,4 @@ async function run() {
 }
 
 run();
+

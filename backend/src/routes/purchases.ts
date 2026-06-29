@@ -1,4 +1,4 @@
-import express, { Response } from 'express';
+﻿import express, { Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { agencyFilter, addAgencyFilter } from '../middleware/agencyFilter';
 import { asyncHandler, createError } from '../middleware/errorHandler';
@@ -12,12 +12,12 @@ const router = express.Router();
 router.use(authenticate);
 router.use(agencyFilter);
 
-// GET /purchases — list all purchases
+// GET /purchases â€” list all purchases
 router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { search, status, vendorId, startDate, endDate, page = 1, limit = 10 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
-  let whereClause = 'WHERE p.is_deleted = false';
+  let whereClause = 'WHERE p.is_deleted = 0';
   let queryParams: any[] = [];
 
   // Add agency filter
@@ -78,11 +78,11 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   });
 }));
 
-// GET /purchases/:id — get single purchase with line items
+// GET /purchases/:id â€” get single purchase with line items
 router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
-  let whereClause = 'WHERE p.id = ? AND p.is_deleted = false';
+  let whereClause = 'WHERE p.id = ? AND p.is_deleted = 0';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null, 'p');
   whereClause = filtered.whereClause;
@@ -138,7 +138,7 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   });
 }));
 
-// POST /purchases — create new purchase
+// POST /purchases â€” create new purchase
 router.post('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { vendorId, purchaseDate, dueDate, paymentTerms, referenceNumber, lineItems, notes, status } = req.body;
 
@@ -159,7 +159,7 @@ router.post('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   }
 
   // Generate purchase number (agency-scoped to avoid cross-tenant collisions)
-  let numWhere = 'WHERE is_deleted = false';
+  let numWhere = 'WHERE is_deleted = 0';
   let numParams: any[] = [];
   const numFiltered = addAgencyFilter(numWhere, numParams, req.agencyId ?? null);
   const countResult = await query(`SELECT COUNT(*) as count FROM purchase ${numFiltered.whereClause}`, numFiltered.params);
@@ -242,7 +242,7 @@ router.post('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   });
 }));
 
-// PUT /purchases/:id — update purchase
+// PUT /purchases/:id â€” update purchase
 router.put('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const { vendorId, purchaseDate, dueDate, status, notes, lineItems } = req.body;
@@ -250,7 +250,7 @@ router.put('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   logger.info('Updating purchase:', { id, vendorId, lineItemsCount: lineItems?.length });
 
   // Check if purchase exists with agency filter
-  let whereClause = 'WHERE id = ? AND is_deleted = false';
+  let whereClause = 'WHERE id = ? AND is_deleted = 0';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
   const existingPurchase = await query(`SELECT * FROM purchase ${filtered.whereClause}`, filtered.params);
@@ -342,11 +342,11 @@ router.put('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   });
 }));
 
-// DELETE /purchases/:id — soft delete
+// DELETE /purchases/:id â€” soft delete
 router.delete('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
-  let whereClause = 'WHERE id = ? AND is_deleted = false';
+  let whereClause = 'WHERE id = ? AND is_deleted = 0';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
   const existingPurchase = await query(`SELECT id, status FROM purchase ${filtered.whereClause}`, filtered.params);
@@ -360,7 +360,7 @@ router.delete('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   }
 
   await query(
-    'UPDATE purchase SET is_deleted = true, updated_by = ?, updated_date = NOW() WHERE id = ?',
+    'UPDATE purchase SET is_deleted = 1, updated_by = ?, updated_date = NOW() WHERE id = ?',
     [req.user?.id || 1, id]
   );
 
@@ -372,9 +372,9 @@ router.delete('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   });
 }));
 
-// GET /purchases/alerts/pending — list pending purchases
+// GET /purchases/alerts/pending â€” list pending purchases
 router.get('/alerts/pending', asyncHandler(async (req: AuthRequest, res: Response) => {
-  let whereClause = "WHERE p.status = 'pending' AND p.is_deleted = false";
+  let whereClause = "WHERE p.status = 'pending' AND p.is_deleted = 0";
   let params: any[] = [];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null, 'p');
   whereClause = filtered.whereClause;
@@ -398,19 +398,19 @@ router.get('/alerts/pending', asyncHandler(async (req: AuthRequest, res: Respons
   });
 }));
 
-// POST /purchases/:id/email — send purchase order email
+// POST /purchases/:id/email â€” send purchase order email
 router.post('/:id/email', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const { to, cc, subject, message } = req.body;
 
-  logger.info('📧 Sending purchase order email:', { id, to });
+  logger.info('ðŸ“§ Sending purchase order email:', { id, to });
 
   if (!to || !Array.isArray(to) || to.length === 0) {
     throw createError('At least one recipient email is required', 400);
   }
 
   // Get purchase with agency filter
-  let whereClause = 'WHERE p.id = ? AND p.is_deleted = false';
+  let whereClause = 'WHERE p.id = ? AND p.is_deleted = 0';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null, 'p');
 
@@ -463,13 +463,13 @@ router.post('/:id/email', asyncHandler(async (req: AuthRequest, res: Response) =
     lineItems,
   };
 
-  logger.info('📄 Generating PDF for purchase order...', { purchaseId: id });
+  logger.info('ðŸ“„ Generating PDF for purchase order...', { purchaseId: id });
 
   const { pdfService } = await import('../services/pdfService');
   const { emailService } = await import('../services/emailService');
 
   const pdfBuffer = await pdfService.generatePurchasePDF(purchaseData);
-  logger.info('✅ PDF generated successfully', { size: pdfBuffer.length });
+  logger.info('âœ… PDF generated successfully', { size: pdfBuffer.length });
 
   await emailService.sendPurchaseEmail({
     to,
@@ -482,7 +482,7 @@ router.post('/:id/email', asyncHandler(async (req: AuthRequest, res: Response) =
     pdfBuffer,
   });
 
-  logger.info('✅ Purchase order emailed successfully', { purchaseId: id, to });
+  logger.info('âœ… Purchase order emailed successfully', { purchaseId: id, to });
 
   res.json({
     success: true,
@@ -490,11 +490,11 @@ router.post('/:id/email', asyncHandler(async (req: AuthRequest, res: Response) =
   });
 }));
 
-// GET /purchases/:id/pdf — download purchase order PDF
+// GET /purchases/:id/pdf â€” download purchase order PDF
 router.get('/:id/pdf', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
-  let whereClause = 'WHERE p.id = ? AND p.is_deleted = false';
+  let whereClause = 'WHERE p.id = ? AND p.is_deleted = 0';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null, 'p');
 
@@ -546,12 +546,12 @@ router.get('/:id/pdf', asyncHandler(async (req: AuthRequest, res: Response) => {
     lineItems,
   };
 
-  logger.info('📄 Generating PDF for download...', { purchaseId: id, purchaseNumber: purchaseData.purchaseNumber });
+  logger.info('ðŸ“„ Generating PDF for download...', { purchaseId: id, purchaseNumber: purchaseData.purchaseNumber });
 
   const { pdfService } = await import('../services/pdfService');
   const pdfBuffer = await pdfService.generatePurchasePDF(purchaseData);
 
-  logger.info('✅ PDF generated successfully', { size: pdfBuffer.length });
+  logger.info('âœ… PDF generated successfully', { size: pdfBuffer.length });
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename=purchase-order-${purchaseData.purchaseNumber}.pdf`);
@@ -560,3 +560,4 @@ router.get('/:id/pdf', asyncHandler(async (req: AuthRequest, res: Response) => {
 }));
 
 export default router;
+

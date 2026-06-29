@@ -1,4 +1,4 @@
-import express, { Response } from 'express';
+﻿import express, { Response } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { agencyFilter, addAgencyFilter } from '../middleware/agencyFilter';
 import { query } from '../config/database';
@@ -56,8 +56,8 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
        bank_account_holder_name,
        payment_terms,
        is_active,
-       created_at,
-       updated_at
+       created_date,
+       updated_date
      FROM vendors ${whereClause}
      ORDER BY name ASC
      LIMIT ? OFFSET ?`,
@@ -106,8 +106,8 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
        bank_account_holder_name,
        payment_terms,
        is_active,
-       created_at,
-       updated_at
+       created_date,
+       updated_date
      FROM vendors ${whereClause}`,
     params
   );
@@ -168,7 +168,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
        name, email, phone,
        address_street, address_city, address_state, address_zip_code, address_country,
        gstin, bank_name, bank_account_number, bank_ifsc_code, bank_account_holder_name,
-       payment_terms, is_active, agency_id, created_at, updated_at
+       payment_terms, is_active, agency_id, created_date, updated_date
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true, ?, NOW(), NOW())`,
     [
       vendorName,
@@ -183,7 +183,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
       bank_name || null,
       account_number || null,
       ifsc_code || null,
-      null, // bank_account_holder_name — not provided in form
+      null, // bank_account_holder_name â€” not provided in form
       30,
       agencyId,
     ]
@@ -193,7 +193,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
   const vendorResult = await query(
     `SELECT id, name, email, phone, address_street as address, address_city as city,
             address_state as state, gstin, bank_name, bank_account_number as account_number,
-            bank_ifsc_code as ifsc_code, is_active, created_at, updated_at
+            bank_ifsc_code as ifsc_code, is_active, created_date, updated_date
      FROM vendors WHERE id = ?`,
     [insertId]
   );
@@ -273,7 +273,7 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
     throw createError('No fields to update', 400);
   }
 
-  updates.push('updated_at = NOW()');
+  updates.push('updated_date = NOW()');
   updateParams.push(id);
 
   await query(
@@ -284,7 +284,7 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
   const vendorResult = await query(
     `SELECT id, name, email, phone, address_street as address, address_city as city,
             address_state as state, gstin, bank_name, bank_account_number as account_number,
-            bank_ifsc_code as ifsc_code, is_active, created_at, updated_at
+            bank_ifsc_code as ifsc_code, is_active, created_date, updated_date
      FROM vendors WHERE id = ?`,
     [id]
   );
@@ -317,7 +317,7 @@ router.delete('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: A
 
   if (parseInt(purchasesCheck.rows[0]?.count ?? 0) > 0) {
     // Soft delete
-    await query('UPDATE vendors SET is_active = false, updated_at = NOW() WHERE id = ?', [id]);
+    await query('UPDATE vendors SET is_active = false, updated_date = NOW() WHERE id = ?', [id]);
     logger.info('Vendor deactivated (has associated purchases)', { vendorId: id });
 
     return res.json({
@@ -337,3 +337,4 @@ router.delete('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: A
 }));
 
 export default router;
+

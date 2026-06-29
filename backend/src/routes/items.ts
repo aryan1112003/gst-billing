@@ -1,4 +1,4 @@
-import express, { Response } from 'express';
+﻿import express, { Response } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { agencyFilter, addAgencyFilter } from '../middleware/agencyFilter';
 import { query } from '../config/database';
@@ -50,8 +50,8 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
        selling_price,
        0 as current_stock,
        0 as min_stock_level,
-       created_at,
-       updated_at
+       created_date,
+       updated_date
      FROM items ${whereClause} 
      ORDER BY name ASC 
      LIMIT ? OFFSET ?`,
@@ -103,8 +103,8 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
        0 as current_stock,
        0 as min_stock_level,
        agency_id,
-       created_at,
-       updated_at
+       created_date,
+       updated_date
      FROM items ${whereClause}`,
     params
   );
@@ -157,7 +157,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
     `INSERT INTO items (
        itemtype_id, name, unit_id, hsncode, taxpreference_id, selling_price,
        description, intra_tax, inter_tax, reason_exempt, agency_id,
-       created_by, created_at, updated_by, updated_at
+       created_by, created_date, updated_by, updated_date
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
     [
       1, // itemtype_id
@@ -194,8 +194,8 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
        selling_price,
        0 as current_stock,
        0 as min_stock_level,
-       created_at,
-       updated_at
+       created_date,
+       updated_date
      FROM items WHERE id = ?`,
     [insertId]
   );
@@ -263,7 +263,7 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
     updateParams.push(selling_price);
   }
 
-  updates.push('updated_at = NOW()', 'updated_by = ?');
+  updates.push('updated_date = NOW()', 'updated_by = ?');
   updateParams.push(req.user?.id || 1); // updated_by
   updateParams.push(id); // WHERE id = ?
 
@@ -286,8 +286,8 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
        selling_price,
        0 as current_stock,
        0 as min_stock_level,
-       created_at,
-       updated_at
+       created_date,
+       updated_date
      FROM items WHERE id = ?`,
     [id]
   );
@@ -363,7 +363,7 @@ router.post('/:id/image', cloudinaryUpload.single('image'), asyncHandler(async (
 
   const imageUrl: string = result.secure_url;
 
-  await query('UPDATE items SET image_url = ?, updated_at = NOW() WHERE id = ?', [imageUrl, id]);
+  await query('UPDATE items SET image_url = ?, updated_date = NOW() WHERE id = ?', [imageUrl, id]);
 
   logger.info('Item image uploaded to Cloudinary', { itemId: id });
 
@@ -380,3 +380,4 @@ router.post('/:id/image', cloudinaryUpload.single('image'), asyncHandler(async (
 }));
 
 export default router;
+

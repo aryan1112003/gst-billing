@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { subscriptionService } from '../services/subscriptionService';
 import { stripeService } from '../services/stripeService';
 import { asyncHandler, createError } from '../middleware/errorHandler';
@@ -114,7 +114,7 @@ router.post('/create-payment-intent', authenticate, asyncHandler(async (req: Aut
     }
     const planIdNum = parseInt(String(planId), 10);
     if (isNaN(planIdNum) || planIdNum <= 0) {
-        throw createError('Invalid Plan ID — must be a positive integer', 400);
+        throw createError('Invalid Plan ID â€” must be a positive integer', 400);
     }
 
     // Get plan details
@@ -264,7 +264,7 @@ router.get('/payment-history', authenticate, asyncHandler(async (req: AuthReques
     const result = await query(
         `SELECT * FROM payment_transactions 
      WHERE agency_id = ? 
-     ORDER BY created_at DESC 
+     ORDER BY created_date DESC 
      LIMIT 50`,
         [agencyId]
     );
@@ -301,3 +301,4 @@ router.post('/webhook', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 export default router;
+

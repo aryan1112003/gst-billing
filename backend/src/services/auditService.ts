@@ -1,4 +1,4 @@
-import { query } from '../config/database';
+﻿import { query } from '../config/database';
 import { logger } from '../config/logger';
 import { AuditLog } from '../types';
 
@@ -77,7 +77,7 @@ export class AuditService {
        FROM audit_logs al
        LEFT JOIN users u ON al.user_id = u.id
        ${whereClause}
-       ORDER BY al.created_at DESC
+       ORDER BY al.created_date DESC
        LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`,
       [...params, limit, offset]
     );
@@ -97,7 +97,7 @@ export class AuditService {
       newValues: row.new_values,
       ipAddress: row.ip_address,
       userAgent: row.user_agent,
-      createdAt: row.created_at,
+      createdAt: row.created_date,
     }));
 
     return { logs, total };
@@ -105,7 +105,7 @@ export class AuditService {
 
   static async cleanupOldLogs(daysToKeep: number = 90): Promise<number> {
     const result = await query(
-      `DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '${daysToKeep} days'`
+      `DELETE FROM audit_logs WHERE created_date < NOW() - INTERVAL '${daysToKeep} days'`
     );
 
     const deletedCount = result.rowCount || 0;

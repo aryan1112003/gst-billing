@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+﻿import { Router, Response } from 'express';
 import { query } from '../config/database';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { authenticate, AuthRequest } from '../middleware/auth';
@@ -71,14 +71,14 @@ router.get('/', authenticate, validateQuery(paginationSchema), asyncHandler(asyn
         params.push(type);
     }
 
-    // Get total count — safe null check on result
+    // Get total count â€” safe null check on result
     const countResult = await query(
         `SELECT COUNT(*) as total FROM gate_passes ${whereClause}`,
         params
     );
     const total = countResult.rows.length > 0 ? (countResult.rows[0].total ?? 0) : 0;
 
-    // Get records (schema uses created_date not created_at)
+    // Get records (schema uses created_date not created_date)
     const result = await query(
         `SELECT * FROM gate_passes ${whereClause} ORDER BY created_date DESC LIMIT ? OFFSET ?`,
         [...params, parseInt(limit), offset]
@@ -259,3 +259,4 @@ router.delete('/:id', authenticate, asyncHandler(async (req: AuthRequest, res: R
 }));
 
 export default router;
+

@@ -1,4 +1,4 @@
-import { query } from '../config/database';
+﻿import { query } from '../config/database';
 import { logger } from '../config/logger';
 import { stripeService } from './stripeService';
 
@@ -129,7 +129,7 @@ export class SubscriptionService {
          FROM subscriptions s
          JOIN subscription_plans p ON s.plan_id = p.id
          WHERE s.agency_id = ?
-         ORDER BY s.created_at DESC
+         ORDER BY s.created_date DESC
          LIMIT 1`,
                 [agencyId]
             );
@@ -167,7 +167,7 @@ export class SubscriptionService {
                 [now, agencyId]
             );
 
-            logger.info(`✅ Trial subscription created for agency ${agencyId}`);
+            logger.info(`âœ… Trial subscription created for agency ${agencyId}`);
 
             return {
                 id: result.insertId,
@@ -216,7 +216,7 @@ export class SubscriptionService {
                 [agencyId]
             );
 
-            logger.info(`✅ Subscription upgraded for agency ${agencyId} to plan ${newPlan.name}`);
+            logger.info(`âœ… Subscription upgraded for agency ${agencyId} to plan ${newPlan.name}`);
 
             return {
                 ...currentSubscription,
@@ -263,7 +263,7 @@ export class SubscriptionService {
                 await stripeService.cancelSubscription(subscription.stripe_subscription_id, !immediately);
             }
 
-            logger.info(`✅ Subscription cancelled for agency ${agencyId}`);
+            logger.info(`âœ… Subscription cancelled for agency ${agencyId}`);
         } catch (error) {
             logger.error('Failed to cancel subscription:', error);
             throw error;
@@ -476,3 +476,4 @@ export class SubscriptionService {
 }
 
 export const subscriptionService = new SubscriptionService();
+

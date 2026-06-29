@@ -1,4 +1,4 @@
-import { query } from '../config/database';
+﻿import { query } from '../config/database';
 import { logger } from '../config/logger';
 import { StockMovement } from '../types';
 
@@ -71,13 +71,13 @@ export class StockService {
 
     if (fromDate) {
       paramCount++;
-      whereClause += ` AND sm.created_at >= $${paramCount}`;
+      whereClause += ` AND sm.created_date >= $${paramCount}`;
       params.push(fromDate);
     }
 
     if (toDate) {
       paramCount++;
-      whereClause += ` AND sm.created_at <= $${paramCount}`;
+      whereClause += ` AND sm.created_date <= $${paramCount}`;
       params.push(toDate);
     }
 
@@ -94,7 +94,7 @@ export class StockService {
        FROM stock_movements sm
        JOIN items i ON sm.item_id = i.id
        ${whereClause}
-       ORDER BY sm.created_at DESC
+       ORDER BY sm.created_date DESC
        LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`,
       [...params, limit, offset]
     );
@@ -112,7 +112,7 @@ export class StockService {
       referenceType: row.reference_type,
       referenceId: row.reference_id,
       notes: row.notes,
-      createdAt: row.created_at,
+      createdAt: row.created_date,
     }));
 
     return { movements, total };

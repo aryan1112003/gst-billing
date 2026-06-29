@@ -1,4 +1,4 @@
-import dbConnectionManager from './databaseConnectionManager';
+﻿import dbConnectionManager from './databaseConnectionManager';
 import bcrypt from 'bcryptjs';
 
 interface AgencyData {
@@ -43,8 +43,8 @@ interface Agency {
   subscription_plan: string;
   business_type?: string;
   subscription_expires_at?: Date;
-  created_at: Date;
-  updated_at: Date;
+  created_date: Date;
+  updated_date: Date;
 }
 
 interface AgencyWithUser extends Agency {
@@ -162,7 +162,7 @@ class AgencyService {
 
       await connection.commit();
 
-      console.log(`✓ Agency created successfully: ${agencyData.companyName}`);
+      console.log(`âœ“ Agency created successfully: ${agencyData.companyName}`);
       console.log(`  - Agency ID: ${agencyId}`);
       console.log(`  - Database: ${databaseName}`);
       console.log(`  - Admin User ID: ${userId}`);
@@ -234,7 +234,7 @@ class AgencyService {
   async getAllAgencies(): Promise<Agency[]> {
     const masterPool = dbConnectionManager.getMasterPool();
     const [rows] = await masterPool.query(
-      'SELECT * FROM agencies ORDER BY created_at DESC'
+      'SELECT * FROM agencies ORDER BY created_date DESC'
     );
 
     return rows as Agency[];
@@ -348,7 +348,7 @@ class AgencyService {
       [status, agencyId]
     );
 
-    console.log(`✓ Agency ${agencyId} status updated to: ${status}`);
+    console.log(`âœ“ Agency ${agencyId} status updated to: ${status}`);
   }
 
   /**
@@ -356,7 +356,7 @@ class AgencyService {
    */
   async deleteAgency(agencyId: number): Promise<void> {
     await this.updateAgencyStatus(agencyId, 'inactive');
-    console.log(`✓ Agency ${agencyId} deleted (marked as inactive)`);
+    console.log(`âœ“ Agency ${agencyId} deleted (marked as inactive)`);
   }
 
   /**
@@ -386,7 +386,7 @@ class AgencyService {
         setting_value TEXT,
         setting_type VARCHAR(50) DEFAULT 'string',
         description TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
   }
@@ -447,12 +447,12 @@ class AgencyService {
           subscription_plan VARCHAR(50) DEFAULT 'basic',
           business_type VARCHAR(100),
           subscription_expires_at TIMESTAMP NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
-      console.log('✓ Agencies table initialized in master database');
+      console.log('âœ“ Agencies table initialized in master database');
     } catch (error) {
       console.error('Error initializing agencies table:', error);
       throw error;
@@ -464,3 +464,4 @@ class AgencyService {
 
 export const agencyService = new AgencyService();
 export default agencyService;
+

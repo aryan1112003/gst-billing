@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+﻿import { Router, Response } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { agencyFilter, addAgencyFilter } from '../middleware/agencyFilter';
 import { asyncHandler, createError } from '../middleware/errorHandler';
@@ -50,7 +50,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const expensesResult = await query(
     `SELECT e.id, e.expense_date, e.category,
             e.amount, e.description, e.is_billable,
-            e.receipt_url, e.created_at, e.updated_at
+            e.receipt_url, e.created_date, e.updated_date
      FROM expenses e
      ${whereClause}
      ORDER BY e.expense_date DESC
@@ -83,7 +83,7 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await query(
     `SELECT e.id, e.expense_date, e.category,
             e.amount, e.description, e.is_billable,
-            e.receipt_url, e.customer_id, e.created_at, e.updated_at
+            e.receipt_url, e.customer_id, e.created_date, e.updated_date
      FROM expenses e
      ${whereClause}`,
     params
@@ -122,7 +122,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
 
   const result = await query(
     `INSERT INTO expenses (
-      expense_date, category, amount, description, is_billable, agency_id, created_at, updated_at
+      expense_date, category, amount, description, is_billable, agency_id, created_date, updated_date
     ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
     [
       expense_date,
@@ -178,7 +178,7 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
   if (is_billable !== undefined) { updateFields.push('is_billable = ?'); updateParams.push(is_billable ? true : false); }
 
   // Always update audit field
-  updateFields.push('updated_at = NOW()');
+  updateFields.push('updated_date = NOW()');
 
   updateParams.push(id);
   await query(
@@ -251,7 +251,7 @@ router.post('/:id/receipt', authorize(['admin', 'agency']), cloudinaryUpload.sin
 
   const receiptUrl: string = result.secure_url;
 
-  await query('UPDATE expenses SET receipt_url = ?, updated_at = NOW() WHERE id = ?', [receiptUrl, id]);
+  await query('UPDATE expenses SET receipt_url = ?, updated_date = NOW() WHERE id = ?', [receiptUrl, id]);
 
   logger.info('Expense receipt uploaded to Cloudinary', { expenseId: id });
 
@@ -268,3 +268,4 @@ router.post('/:id/receipt', authorize(['admin', 'agency']), cloudinaryUpload.sin
 }));
 
 export default router;
+

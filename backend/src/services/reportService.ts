@@ -1,4 +1,4 @@
-import { query } from '../config/database';
+﻿import { query } from '../config/database';
 import { SalesReport, ReceivablesReport, ExpenseReport, DashboardMetrics } from '../types';
 
 export class ReportService {
@@ -17,9 +17,9 @@ export class ReportService {
       if (agencyId) { itemWhere += ` AND agency_id = ?`; itemParams.push(agencyId); }
       const itemResult = await query(`SELECT COUNT(*) as total_items FROM items ${itemWhere}`, itemParams);
 
-      // Invoice stats — use is_deleted = false for PostgreSQL boolean
+      // Invoice stats â€” use is_deleted = 0 for PostgreSQL boolean
       const invoiceParams: any[] = [];
-      let invoiceWhere = `WHERE is_deleted = false`;
+      let invoiceWhere = `WHERE is_deleted = 0`;
       if (agencyId) { invoiceWhere += ` AND agency_id = ?`; invoiceParams.push(agencyId); }
       const invoiceResult = await query(`
         SELECT COUNT(*) as total_invoices,
@@ -50,15 +50,15 @@ export class ReportService {
       let activitiesResult;
       try {
         const activitiesParams: any[] = [];
-        let activitiesWhere = `WHERE is_deleted = false`;
+        let activitiesWhere = `WHERE is_deleted = 0`;
         if (agencyId) { activitiesWhere += ` AND agency_id = ?`; activitiesParams.push(agencyId); }
         activitiesResult = await query(`
           SELECT 'invoice' as type,
                  'Invoice ' || invoice_number || ' created' as description,
-                 created_at as timestamp
+                 created_date as timestamp
           FROM invoices
           ${activitiesWhere}
-          ORDER BY created_at DESC
+          ORDER BY created_date DESC
           LIMIT 10
         `, activitiesParams);
       } catch (err) {
@@ -103,7 +103,7 @@ export class ReportService {
   // Sales Reports (adapted for mawebtec_lms with multi-tenant support)
   static async getSalesReport(fromDate?: Date, toDate?: Date, customerId?: string, agencyId?: number): Promise<SalesReport> {
     const params: any[] = [];
-    let whereClause = `WHERE i.is_deleted = false`;
+    let whereClause = `WHERE i.is_deleted = 0`;
 
     if (fromDate) {
       whereClause += ` AND i.invoice_date >= ?`;
@@ -143,7 +143,7 @@ export class ReportService {
     `, params);
 
     const byMonthParams: any[] = [];
-    let byMonthWhere = `WHERE i.is_deleted = false AND i.invoice_date >= CURRENT_DATE - INTERVAL '11 months'`;
+    let byMonthWhere = `WHERE i.is_deleted = 0 AND i.invoice_date >= CURRENT_DATE - INTERVAL '11 months'`;
     if (agencyId) { byMonthWhere += ` AND i.agency_id = ?`; byMonthParams.push(agencyId); }
     const salesByMonthResult = await query(`
       SELECT TO_CHAR(i.invoice_date, 'YYYY-MM') as month,
@@ -175,7 +175,7 @@ export class ReportService {
 
   static async getSalesByCustomer(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE i.is_deleted = false`;
+    let whereClause = `WHERE i.is_deleted = 0`;
     if (fromDate) { whereClause += ` AND i.invoice_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND i.invoice_date <= ?`; params.push(toDate); }
     if (agencyId) {
@@ -220,7 +220,7 @@ export class ReportService {
 
   static async getSalesBySalesperson(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE i.is_deleted = false`;
+    let whereClause = `WHERE i.is_deleted = 0`;
     if (fromDate) { whereClause += ` AND i.invoice_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND i.invoice_date <= ?`; params.push(toDate); }
     if (agencyId) {
@@ -245,7 +245,7 @@ export class ReportService {
   // Receivables Reports (simplified for mawebtec_lms)
   static async getReceivablesReport(agencyId?: number): Promise<ReceivablesReport> {
     const params: any[] = [];
-    let whereClause = `WHERE is_deleted = false AND status != 'paid'`;
+    let whereClause = `WHERE is_deleted = 0 AND status != 'paid'`;
     if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
     // Simplified - mawebtec_lms doesn't have paid_amount in invoices
     const receivablesResult = await query(`
@@ -273,7 +273,7 @@ export class ReportService {
       SELECT CONCAT(c.fname, ' ', c.lname) as name,
              COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as balance
       FROM customers c
-      LEFT JOIN invoices i ON c.id = i.customer_id AND i.is_deleted = false AND i.status != 'paid'
+      LEFT JOIN invoices i ON c.id = i.customer_id AND i.is_deleted = 0 AND i.status != 'paid'
       ${whereClause}
       GROUP BY c.id, c.fname, c.lname
       HAVING COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) > 0
@@ -284,7 +284,7 @@ export class ReportService {
 
   static async getAgingSummary(agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE i.is_deleted = false AND i.status != 'paid'`;
+    let whereClause = `WHERE i.is_deleted = 0 AND i.status != 'paid'`;
     if (agencyId) { whereClause += ` AND i.agency_id = ?`; params.push(agencyId); }
     const result = await query(`
       SELECT
@@ -302,7 +302,7 @@ export class ReportService {
 
   static async getAgingDetails(agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE i.is_deleted = false AND i.status != 'paid'`;
+    let whereClause = `WHERE i.is_deleted = 0 AND i.status != 'paid'`;
     if (agencyId) { whereClause += ` AND i.agency_id = ?`; params.push(agencyId); }
     const result = await query(`
       SELECT i.invoice_number,
@@ -329,7 +329,7 @@ export class ReportService {
 
   static async getInvoiceDetails(fromDate?: Date, toDate?: Date, status?: string, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE i.is_deleted = false`;
+    let whereClause = `WHERE i.is_deleted = 0`;
     if (fromDate) { whereClause += ` AND i.invoice_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND i.invoice_date <= ?`; params.push(toDate); }
     if (status) { whereClause += ` AND i.status = ?`; params.push(status); }
@@ -546,7 +546,7 @@ export class ReportService {
   static async getProfitLoss(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const incomeParams = [];
     const expenseParams = [];
-    let incWhere = `WHERE is_deleted = false`;
+    let incWhere = `WHERE is_deleted = 0`;
     let expWhere = `WHERE 1=1`;
 
     if (fromDate) { incWhere += ` AND invoice_date >= ?`; incomeParams.push(fromDate); }
@@ -584,8 +584,8 @@ export class ReportService {
     // Simplified Balance Sheet
     const invoiceParams: any[] = [];
     const purchaseParams: any[] = [];
-    let whereClause = `WHERE is_deleted = false`;
-    let purchaseWhere = `WHERE is_deleted = false`;
+    let whereClause = `WHERE is_deleted = 0`;
+    let purchaseWhere = `WHERE is_deleted = 0`;
 
     if (asOfDate) {
       whereClause += ` AND invoice_date <= ?`;
@@ -670,7 +670,7 @@ export class ReportService {
   // Tax Reports
   static async getGSTSummary(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE is_deleted = false`;
+    let whereClause = `WHERE is_deleted = 0`;
     if (fromDate) { whereClause += ` AND invoice_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND invoice_date <= ?`; params.push(toDate); }
     if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
@@ -693,7 +693,7 @@ export class ReportService {
 
   static async getGSTR1(month?: number, year?: number, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE is_deleted = false`;
+    let whereClause = `WHERE is_deleted = 0`;
 
     if (month && year) {
       whereClause += ` AND EXTRACT(MONTH FROM invoice_date) = ? AND EXTRACT(YEAR FROM invoice_date) = ?`;
@@ -725,7 +725,7 @@ export class ReportService {
 
   static async getGSTR2(month?: number, year?: number, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE p.is_deleted = false`;
+    let whereClause = `WHERE p.is_deleted = 0`;
 
     if (month && year) {
       whereClause += ` AND EXTRACT(MONTH FROM p.purchase_date) = ? AND EXTRACT(YEAR FROM p.purchase_date) = ?`;
@@ -754,7 +754,7 @@ export class ReportService {
 
   static async getGSTR3B(month?: number, year?: number, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE is_deleted = false`;
+    let whereClause = `WHERE is_deleted = 0`;
     if (month && year) {
       whereClause += ` AND EXTRACT(MONTH FROM invoice_date) = ? AND EXTRACT(YEAR FROM invoice_date) = ?`;
       params.push(month, year);
@@ -763,7 +763,7 @@ export class ReportService {
 
     // Purchase filter
     const pParams: any[] = [];
-    let pWhere = `WHERE is_deleted = false`;
+    let pWhere = `WHERE is_deleted = 0`;
     if (month && year) {
       pWhere += ` AND EXTRACT(MONTH FROM purchase_date) = ? AND EXTRACT(YEAR FROM purchase_date) = ?`;
       pParams.push(month, year);
@@ -820,7 +820,7 @@ export class ReportService {
 
   static async getTaxSummary(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE is_deleted = false`;
+    let whereClause = `WHERE is_deleted = 0`;
     if (fromDate) { whereClause += ` AND invoice_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND invoice_date <= ?`; params.push(toDate); }
     if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
@@ -853,7 +853,7 @@ export class ReportService {
              COALESCE(SUM(CAST(p.total_amount AS DECIMAL(10,2))), 0) as total_purchases,
              COALESCE(SUM(CASE WHEN p.status != 'paid' THEN CAST(p.total_amount AS DECIMAL(10,2)) ELSE 0 END), 0) as outstanding_balance
       FROM vendors v
-      LEFT JOIN purchase p ON v.id = p.vendor_id AND p.is_deleted = false
+      LEFT JOIN purchase p ON v.id = p.vendor_id AND p.is_deleted = 0
       ${whereClause}
       GROUP BY v.id, v.name, v.email, v.phone
       ORDER BY outstanding_balance DESC
@@ -864,7 +864,7 @@ export class ReportService {
 
   static async getVendorCredits(agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE p.is_deleted = false AND p.status = 'paid'`;
+    let whereClause = `WHERE p.is_deleted = 0 AND p.status = 'paid'`;
     if (agencyId) { whereClause += ` AND p.agency_id = ?`; params.push(agencyId); }
     // Vendor credits - showing paid purchases
     const result = await query(`
@@ -888,7 +888,7 @@ export class ReportService {
 
   static async getPurchaseByVendor(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
-    let whereClause = `WHERE p.is_deleted = false`;
+    let whereClause = `WHERE p.is_deleted = 0`;
     if (fromDate) { whereClause += ` AND p.purchase_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND p.purchase_date <= ?`; params.push(toDate); }
     if (agencyId) { whereClause += ` AND p.agency_id = ?`; params.push(agencyId); }
@@ -912,7 +912,7 @@ export class ReportService {
   static async getVendorPayments(fromDate?: Date, toDate?: Date, agencyId?: number) {
     // Vendor payments - showing purchases as proxy
     const params: any[] = [];
-    let whereClause = `WHERE p.is_deleted = false`;
+    let whereClause = `WHERE p.is_deleted = 0`;
     if (fromDate) { whereClause += ` AND p.purchase_date >= ?`; params.push(fromDate); }
     if (toDate) { whereClause += ` AND p.purchase_date <= ?`; params.push(toDate); }
     if (agencyId) { whereClause += ` AND p.agency_id = ?`; params.push(agencyId); }
@@ -937,3 +937,4 @@ export class ReportService {
     return result;
   }
 }
+

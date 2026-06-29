@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+﻿import { Router, Response } from 'express';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { agencyService } from '../services/agencyService';
@@ -11,7 +11,7 @@ const router = Router();
 router.use(authenticate);
 
 // Routes
-// Upload logo — Cloudinary
+// Upload logo â€” Cloudinary
 router.post('/:id/logo', cloudinaryUpload.single('logo'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const agencyId = parseInt(req.params.id);
   if (isNaN(agencyId)) throw createError('Invalid agency ID', 400);
@@ -116,7 +116,7 @@ router.post('/', asyncHandler(async (req: AuthRequest, res: Response) => {
           status: agency.status,
           subscriptionPlan: agency.subscription_plan,
           businessType: agency.business_type,
-          createdAt: agency.created_at
+          createdAt: agency.created_date
         },
         user: {
           id: agency.user_id,
@@ -157,7 +157,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
         phone: agency.phone,
         status: agency.status,
         subscriptionPlan: agency.subscription_plan,
-        createdAt: agency.created_at
+        createdAt: agency.created_date
       })),
       total: agencies.length
     }
@@ -203,8 +203,8 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
         status: agency.status,
         subscriptionPlan: agency.subscription_plan,
         subscriptionExpiresAt: agency.subscription_expires_at,
-        createdAt: agency.created_at,
-        updatedAt: agency.updated_at
+        createdAt: agency.created_date,
+        updatedAt: agency.updated_date
       }
     }
   });
@@ -279,7 +279,7 @@ router.put('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
         businessType: agency.business_type,
         status: agency.status,
         subscriptionPlan: agency.subscription_plan,
-        updatedAt: agency.updated_at
+        updatedAt: agency.updated_date
       }
     }
   });
@@ -402,7 +402,7 @@ const DEFAULT_BUSINESS_TYPES = [
 ];
 
 /**
- * Get business types list (public — no auth required)
+ * Get business types list (public â€” no auth required)
  * GET /api/agencies/config/business-types
  */
 router.get('/config/business-types', asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -413,7 +413,7 @@ router.get('/config/business-types', asyncHandler(async (req: AuthRequest, res: 
     CREATE TABLE IF NOT EXISTS platform_config (
       config_key VARCHAR(100) PRIMARY KEY,
       config_value TEXT,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -454,12 +454,12 @@ router.put('/config/business-types', asyncHandler(async (req: AuthRequest, res: 
     CREATE TABLE IF NOT EXISTS platform_config (
       config_key VARCHAR(100) PRIMARY KEY,
       config_value TEXT,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
   await masterPool.query(
-    'INSERT INTO platform_config (config_key, config_value) VALUES (?, ?) ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = NOW()',
+    'INSERT INTO platform_config (config_key, config_value) VALUES (?, ?) ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_date = NOW()',
     ['business_types', JSON.stringify(businessTypes)]
   );
 
@@ -467,3 +467,4 @@ router.put('/config/business-types', asyncHandler(async (req: AuthRequest, res: 
 }));
 
 export default router;
+

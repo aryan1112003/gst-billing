@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { agencyFilter, addAgencyFilter } from '../middleware/agencyFilter';
 import { asyncHandler, createError } from '../middleware/errorHandler';
@@ -50,8 +50,8 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
        company_name,
        cdisplay_name as display_name,
        is_active,
-       created_date as created_at,
-       updated_date as updated_at
+       created_date as created_date,
+       updated_date as updated_date
      FROM customers ${whereClause} 
      ORDER BY fname ASC 
      LIMIT ? OFFSET ?`,
@@ -97,8 +97,8 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
        website,
        is_active,
        agency_id,
-       created_date as created_at,
-       updated_date as updated_at
+       created_date as created_date,
+       updated_date as updated_date
      FROM customers ${whereClause}`,
     params
   );
@@ -204,8 +204,8 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
        '' as address,
        gstin_number as gstin,
        company_name,
-       created_date as created_at,
-       updated_date as updated_at
+       created_date as created_date,
+       updated_date as updated_date
      FROM customers WHERE id = ?`,
     [insertId]
   );
@@ -231,7 +231,7 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
     company_name
   } = req.body;
 
-  // Check if customer exists — scoped to the user's agency
+  // Check if customer exists â€” scoped to the user's agency
   let existingWhere = 'WHERE id = ?';
   let existingParams: any[] = [id];
   const existingFiltered = addAgencyFilter(existingWhere, existingParams, req.agencyId ?? null);
@@ -310,8 +310,8 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
        '' as address,
        gstin_number as gstin,
        company_name,
-       created_date as created_at,
-       updated_date as updated_at
+       created_date as created_date,
+       updated_date as updated_date
      FROM customers WHERE id = ?`,
     [id]
   );
@@ -329,7 +329,7 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
 router.delete('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
-  // Check if customer exists — scoped to the user's agency to prevent cross-agency deletion
+  // Check if customer exists â€” scoped to the user's agency to prevent cross-agency deletion
   let existingWhere = 'WHERE id = ?';
   let existingParams: any[] = [id];
   const existingFiltered = addAgencyFilter(existingWhere, existingParams, req.agencyId ?? null);
@@ -343,7 +343,7 @@ router.delete('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: A
   const paymentsCheck = await query('SELECT COUNT(*) as count FROM payments_received WHERE customer_id = ?', [id]);
 
   if (parseInt(invoicesCheck.rows[0]?.count ?? 0) > 0 || parseInt(paymentsCheck.rows[0]?.count ?? 0) > 0) {
-    // Soft delete — deactivate instead of hard delete
+    // Soft delete â€” deactivate instead of hard delete
     await query('UPDATE customers SET is_active = false, updated_by = ?, updated_date = NOW() WHERE id = ?', [req.user?.id || 1, id]);
     logger.info('Customer deactivated (has associated records)', { customerId: id });
 
@@ -364,3 +364,4 @@ router.delete('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: A
 }));
 
 export default router;
+

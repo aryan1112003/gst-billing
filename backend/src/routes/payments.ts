@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+﻿import express, { Request, Response } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { agencyFilter, addAgencyFilter } from '../middleware/agencyFilter';
 import { query, withTransaction } from '../config/database';
@@ -62,7 +62,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const paymentsResult = await query(
     `SELECT p.id, p.customer_id, p.amount, p.payment_date, p.payment_mode, 
             p.reference as reference_number, p.amount_received, p.bank_charges,
-            p.created_date as created_at,
+            p.created_date as created_date,
             CONCAT(c.fname, ' ', c.lname) as customer_name, 
             c.customer_email as customer_email
      FROM payments_received p
@@ -85,11 +85,11 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   });
 }));
 
-// Get customer outstanding balance — must be BEFORE /:id to avoid shadowing
+// Get customer outstanding balance â€” must be BEFORE /:id to avoid shadowing
 router.get('/customer/:customerId/outstanding', asyncHandler(async (req: AuthRequest, res: Response) => {
   const { customerId } = req.params;
 
-  let whereClause1 = 'WHERE customer_id = ? AND is_deleted = false';
+  let whereClause1 = 'WHERE customer_id = ? AND is_deleted = 0';
   let params1: any[] = [customerId];
   const filtered1 = addAgencyFilter(whereClause1, params1, req.agencyId ?? null);
 
@@ -144,7 +144,7 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
     `SELECT p.id, p.customer_id, p.amount, p.payment_date, p.payment_mode, 
             p.reference as reference_number, p.amount_received, p.bank_charges,
             p.amount_used_in_payment, p.amount_excess,
-            p.created_date as created_at,
+            p.created_date as created_date,
             CONCAT(c.fname, ' ', c.lname) as customer_name, 
             c.customer_email as customer_email
      FROM payments_received p
@@ -473,3 +473,4 @@ router.post('/:id/email', authorize(['admin', 'agency']), asyncHandler(async (re
 }));
 
 export default router;
+
