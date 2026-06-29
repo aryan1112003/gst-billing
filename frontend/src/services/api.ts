@@ -42,11 +42,7 @@ export const getAuthToken = () => authToken;
 
 // Helper function for API calls
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-  const headers: Record<string, string> = {
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    'Pragma': 'no-cache',
-    'Expires': '0',
-  };
+  const headers: Record<string, string> = {};
 
   // Only add Content-Type if it's not FormData
   if (!(options.body instanceof FormData)) {
