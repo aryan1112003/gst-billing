@@ -6,10 +6,13 @@ import { Platform } from 'react-native';
 // Mobile: use EXPO_PUBLIC_API_URL env var; falls back to localhost for emulator.
 const getBaseServerUrl = (): string => {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    const { protocol, hostname } = window.location;
+    const { protocol, hostname, port } = window.location;
+    // Port 80 / no port = served via nginx, which proxies /api to backend
+    if (!port || port === '80') return `${protocol}//${hostname}`;
+    // Dev / port 8081 = backend is on :8001
     return `${protocol}//${hostname}:8001`;
   }
-  // Mobile (Android physical device, iOS) — set EXPO_PUBLIC_API_URL to your machine/server IP
+  // Mobile — set EXPO_PUBLIC_API_URL to your server IP
   return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8001';
 };
 
