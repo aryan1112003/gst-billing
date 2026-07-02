@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface FormData {
     productName: string;
@@ -66,7 +67,7 @@ export const ProductionOrderFormScreen: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to fetch production order:', error);
-            Alert.alert('Error', 'Failed to load production order details');
+            showError('Failed to load production order details');
         } finally {
             setLoading(false);
         }
@@ -74,15 +75,15 @@ export const ProductionOrderFormScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.productName.trim()) {
-            Alert.alert('Validation Error', 'Please enter product name');
+            showAlert('Validation Error', 'Please enter product name');
             return;
         }
         if (!formData.quantity.trim()) {
-            Alert.alert('Validation Error', 'Please enter quantity');
+            showAlert('Validation Error', 'Please enter quantity');
             return;
         }
         if (!formData.plannedDate.trim()) {
-            Alert.alert('Validation Error', 'Please enter planned date');
+            showAlert('Validation Error', 'Please enter planned date');
             return;
         }
 
@@ -92,16 +93,16 @@ export const ProductionOrderFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.productionOrders.update(productionOrderId.toString(), payload);
-                Alert.alert('Success', 'Production order updated successfully');
+                showSuccess('Production order updated successfully');
             } else {
                 await api.productionOrders.create(payload);
-                Alert.alert('Success', 'Production order created successfully');
+                showSuccess('Production order created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save production order:', error);
-            Alert.alert('Error', error.message || 'Failed to save production order');
+            showError(error.message || 'Failed to save production order');
         } finally {
             setSaving(false);
         }

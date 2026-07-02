@@ -129,7 +129,7 @@ export class SubscriptionService {
          FROM subscriptions s
          JOIN subscription_plans p ON s.plan_id = p.id
          WHERE s.agency_id = ?
-         ORDER BY s.created_date DESC
+         ORDER BY s.id DESC
          LIMIT 1`,
                 [agencyId]
             );

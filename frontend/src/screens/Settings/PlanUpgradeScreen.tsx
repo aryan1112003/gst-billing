@@ -12,6 +12,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { subscriptionAPI } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 export const PlanUpgradeScreen = ({ route, navigation }: any) => {
     const { plan } = route.params;
@@ -33,7 +34,7 @@ export const PlanUpgradeScreen = ({ route, navigation }: any) => {
             const { clientSecret, paymentIntentId } = paymentResponse.data;
 
             // Step 2: Show payment confirmation
-            Alert.alert(
+            showAlert(
                 'Payment Confirmation',
                 `You are about to pay ₹${plan.price_monthly.toLocaleString()} for ${plan.display_name}.\n\nIn production, Stripe payment UI would appear here.`,
                 [
@@ -45,7 +46,7 @@ export const PlanUpgradeScreen = ({ route, navigation }: any) => {
                 ]
             );
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to initiate payment');
+            showError(error.message || 'Failed to initiate payment');
             setLoading(false);
         }
     };
@@ -63,7 +64,7 @@ export const PlanUpgradeScreen = ({ route, navigation }: any) => {
             const confirmResponse = await subscriptionAPI.confirmUpgrade(plan.id, paymentIntentId);
 
             if (confirmResponse.success) {
-                Alert.alert(
+                showAlert(
                     'Success! 🎉',
                     `Your subscription has been upgraded to ${plan.display_name}!\n\nAll limits have been updated and you now have full access.`,
                     [
@@ -75,7 +76,7 @@ export const PlanUpgradeScreen = ({ route, navigation }: any) => {
                 );
             }
         } catch (error: any) {
-            Alert.alert('Payment Failed', error.message || 'Please try again');
+            showAlert('Payment Failed', error.message || 'Please try again');
         } finally {
             setProcessing(false);
             setLoading(false);

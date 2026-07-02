@@ -11,6 +11,7 @@ import { colors as baseColors } from '../../theme/colors';
 import { useTheme } from '../../contexts/ThemeContext';
 import { customersAPI } from '../../services/api';
 import { confirmDelete, showDeleteSuccess, showDeleteError } from '../../utils/deleteConfirm';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 export const CustomersScreen: React.FC = ({ navigation }: any) => {
   const { colors: themeColors, isDarkMode } = useTheme();
@@ -58,7 +59,7 @@ export const CustomersScreen: React.FC = ({ navigation }: any) => {
       }
     } catch (err: any) {
       console.error('Failed to fetch customers:', err);
-      Alert.alert('Error', err.message || 'Failed to load customers');
+      showError(err.message || 'Failed to load customers');
     } finally {
       setLoading(false);
     }

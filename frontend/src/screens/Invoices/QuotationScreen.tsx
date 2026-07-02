@@ -13,6 +13,7 @@ import { invoicesAPI } from '../../services/api'; // Reusing invoicesAPI
 import { confirmDelete, showDeleteSuccess, showDeleteError } from '../../utils/deleteConfirm';
 import { EmailInvoiceDialog } from '../../components/Invoice/EmailInvoiceDialog';
 import { RootState } from '../../store/store';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface Quotation {
     id: string;
@@ -204,12 +205,12 @@ export const QuotationScreen: React.FC = ({ navigation }: any) => {
                 link.click();
                 document.body.removeChild(link);
                 window.URL.revokeObjectURL(url);
-                Alert.alert('Success', `Quotation ${item.number} downloaded successfully!`);
+                showSuccess(`Quotation ${item.number} downloaded successfully!`);
             } else {
-                Alert.alert('Success', 'PDF download started');
+                showSuccess('PDF download started');
             }
         } catch (err: any) {
-            Alert.alert('Download Failed', err.message || 'Failed to download PDF.');
+            showAlert('Download Failed', err.message || 'Failed to download PDF.');
         } finally {
             setLoading(false);
         }
@@ -220,11 +221,11 @@ export const QuotationScreen: React.FC = ({ navigation }: any) => {
         try {
             setEmailLoading(true);
             await invoicesAPI.emailInvoice(selectedQuotation.id, data);
-            Alert.alert('Email Sent!', `Quotation ${selectedQuotation.number} has been sent.`);
+            showAlert('Email Sent!', `Quotation ${selectedQuotation.number} has been sent.`);
             setEmailDialogVisible(false);
             setSelectedQuotation(null);
         } catch (err: any) {
-            Alert.alert('Email Failed', err.message || 'Failed to send email.');
+            showAlert('Email Failed', err.message || 'Failed to send email.');
         } finally {
             setEmailLoading(false);
         }

@@ -6,6 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { MainLayout } from '../../components/Layout/MainLayout';
 import { colors } from '../../theme/colors';
 import { usersAPI, agenciesAPI } from '../../services/api';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface UserFormData {
   email: string;
@@ -72,7 +73,7 @@ export const UserFormScreen: React.FC = ({ navigation, route }: any) => {
       });
     } catch (err: any) {
       console.error('Failed to fetch user:', err);
-      Alert.alert('Error', err.message || 'Failed to load user');
+      showError(err.message || 'Failed to load user');
     } finally {
       setLoading(false);
     }
@@ -81,27 +82,27 @@ export const UserFormScreen: React.FC = ({ navigation, route }: any) => {
   const handleSubmit = async () => {
     // Validation
     if (!formData.email.trim()) {
-      Alert.alert('Validation Error', 'Email is required');
+      showAlert('Validation Error', 'Email is required');
       return;
     }
 
     if (!formData.username.trim()) {
-      Alert.alert('Validation Error', 'Username is required');
+      showAlert('Validation Error', 'Username is required');
       return;
     }
 
     if (!isEditMode && !formData.password) {
-      Alert.alert('Validation Error', 'Password is required for new users');
+      showAlert('Validation Error', 'Password is required for new users');
       return;
     }
 
     if (formData.password && formData.password.length < 6) {
-      Alert.alert('Validation Error', 'Password must be at least 6 characters');
+      showAlert('Validation Error', 'Password must be at least 6 characters');
       return;
     }
 
     if (formData.role === 'agency' && !isEditMode && !formData.companyName?.trim()) {
-      Alert.alert('Validation Error', 'Company Name is required for Agency role');
+      showAlert('Validation Error', 'Company Name is required for Agency role');
       return;
     }
 
@@ -136,18 +137,18 @@ export const UserFormScreen: React.FC = ({ navigation, route }: any) => {
 
       if (isEditMode) {
         await usersAPI.update(userId, submitData);
-        Alert.alert('Success', 'User updated successfully!', [
+        showSuccess('User updated successfully!', [
           { text: 'OK', onPress: () => navigation.goBack() }
         ]);
       } else {
         await usersAPI.create(submitData);
-        Alert.alert('Success', 'User created successfully!', [
+        showSuccess('User created successfully!', [
           { text: 'OK', onPress: () => navigation.goBack() }
         ]);
       }
     } catch (err: any) {
       console.error('Failed to save user:', err);
-      Alert.alert('Error', err.message || 'Failed to save user');
+      showError(err.message || 'Failed to save user');
     } finally {
       setLoading(false);
     }

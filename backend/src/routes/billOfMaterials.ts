@@ -24,6 +24,22 @@ const bomSchema = Joi.object({
     ).optional(),
 });
 
+const bomUpdateSchema = Joi.object({
+    productName: Joi.string(),
+    itemId: Joi.number().allow(null),
+    quantity: Joi.number(),
+    unit: Joi.string(),
+    status: Joi.string().valid('active', 'inactive'),
+    components: Joi.array().items(
+        Joi.object({
+            componentName: Joi.string().required(),
+            itemId: Joi.number().allow(null),
+            quantity: Joi.number().required(),
+            unit: Joi.string().required(),
+        })
+    ).optional(),
+});
+
 const paginationSchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
@@ -197,12 +213,12 @@ router.post('/', authenticate, validateBody(bomSchema), asyncHandler(async (req:
     res.status(201).json({
         success: true,
         message: 'Bill of materials created successfully',
-        data: { bomNumber }
+        data: { id: bomId, bomNumber }
     });
 }));
 
 // Update BOM
-router.put('/:id', authenticate, validateBody(bomSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, validateBody(bomUpdateSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     const {

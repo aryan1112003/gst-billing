@@ -18,6 +18,7 @@ import { publicAPI } from '../../services/api';
 import { useDispatch } from 'react-redux';
 import { loginSuccess } from '../../store/slices/authSlice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 const INPUT_THEME = {
     colors: {
@@ -100,7 +101,7 @@ export const AgencyRegistrationScreen = ({ navigation }: any) => {
                 }
             }
         } catch (error: any) {
-            Alert.alert('Registration Failed', error.message || 'Please try again');
+            showAlert('Registration Failed', error.message || 'Please try again');
         } finally {
             setLoading(false);
         }
@@ -141,7 +142,7 @@ export const AgencyRegistrationScreen = ({ navigation }: any) => {
                 }, 2000);
             }
         } catch (error: any) {
-            Alert.alert('Verification Failed', error.message || 'Invalid code');
+            showAlert('Verification Failed', error.message || 'Invalid code');
         } finally {
             setLoading(false);
         }
@@ -152,9 +153,9 @@ export const AgencyRegistrationScreen = ({ navigation }: any) => {
         setLoading(true);
         try {
             await publicAPI.resendRegistrationOtp(userId);
-            Alert.alert('Code Resent', 'A new verification code has been sent to your email.');
+            showAlert('Code Resent', 'A new verification code has been sent to your email.');
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to resend code');
+            showError(error.message || 'Failed to resend code');
         } finally {
             setLoading(false);
         }

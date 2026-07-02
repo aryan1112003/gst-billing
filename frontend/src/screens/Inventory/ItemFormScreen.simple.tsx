@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { MainLayout } from '../../components/Layout/MainLayout';
 import { colors } from '../../theme/colors';
 import { itemsAPI } from '../../services/api';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -48,7 +49,7 @@ export const ItemFormScreen: React.FC = ({ navigation, route }: any) => {
       });
     } catch (err: any) {
       console.error('Failed to fetch item:', err);
-      Alert.alert('Error', err.message || 'Failed to load item');
+      showError(err.message || 'Failed to load item');
     } finally {
       setLoading(false);
     }
@@ -56,7 +57,7 @@ export const ItemFormScreen: React.FC = ({ navigation, route }: any) => {
 
   const handleSubmit = async () => {
     if (!formData.sku.trim() || !formData.name.trim()) {
-      Alert.alert('Validation Error', 'SKU and name are required');
+      showAlert('Validation Error', 'SKU and name are required');
       return;
     }
 
@@ -83,7 +84,7 @@ export const ItemFormScreen: React.FC = ({ navigation, route }: any) => {
     } catch (err: any) {
       console.error('Failed to save item:', err);
       setLoading(false);
-      Alert.alert('Error', err.message || 'Failed to save item');
+      showError(err.message || 'Failed to save item');
     }
   };
 

@@ -264,7 +264,7 @@ router.get('/payment-history', authenticate, asyncHandler(async (req: AuthReques
     const result = await query(
         `SELECT * FROM payment_transactions 
      WHERE agency_id = ? 
-     ORDER BY created_date DESC 
+     ORDER BY id DESC
      LIMIT 50`,
         [agencyId]
     );

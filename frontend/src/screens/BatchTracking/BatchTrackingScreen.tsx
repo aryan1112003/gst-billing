@@ -139,7 +139,7 @@ export const BatchTrackingScreen: React.FC = () => {
                             {item.batchNumber}
                         </Text>
                         <Text variant="bodySmall" style={{ color: themeColors.text.muted }}>
-                            {new Date(item.createdAt).toLocaleDateString()}
+                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
                         </Text>
                     </View>
                     <View style={styles.headerRight}>

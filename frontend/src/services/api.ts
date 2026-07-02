@@ -85,7 +85,17 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
 
   if (!response.ok) {
     if (response.status === 401) {
+      // Clear all auth state and redirect to login
       setAuthToken(null);
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('auth_state');
+          localStorage.removeItem('agency_state');
+        }
+      } catch {}
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
     }
     const error = await response.json().catch(() => ({ message: 'Request failed' }));
     throw new Error(error.message || `HTTP ${response.status}`);

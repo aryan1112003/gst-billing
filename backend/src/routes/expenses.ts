@@ -33,11 +33,11 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
     params.push(category);
   }
   if (start_date) {
-    whereClause += ` AND e.expense_date >= ?`;
+    whereClause += ` AND e.date >= ?`;
     params.push(start_date);
   }
   if (end_date) {
-    whereClause += ` AND e.expense_date <= ?`;
+    whereClause += ` AND e.date <= ?`;
     params.push(end_date);
   }
 
@@ -48,12 +48,25 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const total = parseInt(countResult.rows[0]?.count ?? 0);
 
   const expensesResult = await query(
-    `SELECT e.id, e.expense_date, e.category,
-            e.amount, e.description, e.is_billable,
-            e.receipt_url, e.created_date, e.updated_date
+    `SELECT e.id, e.date as expense_date, e.category_id,
+            CASE e.category_id
+              WHEN 1 THEN 'Advertising'
+              WHEN 2 THEN 'Office Supplies'
+              WHEN 3 THEN 'Travel'
+              WHEN 4 THEN 'Utilities'
+              WHEN 5 THEN 'Rent'
+              WHEN 6 THEN 'Salaries'
+              WHEN 7 THEN 'Maintenance'
+              WHEN 8 THEN 'Insurance'
+              WHEN 9 THEN 'Professional Fees'
+              WHEN 10 THEN 'Miscellaneous'
+              ELSE 'Other'
+            END as category_name,
+            e.amount, e.total_amount, e.notes as description,
+            e.created_date, e.updated_date
      FROM expenses e
      ${whereClause}
-     ORDER BY e.expense_date DESC
+     ORDER BY e.date DESC
      LIMIT ? OFFSET ?`,
     [...params, Number(limit), offset]
   );
@@ -81,9 +94,22 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   params = filtered.params;
 
   const result = await query(
-    `SELECT e.id, e.expense_date, e.category,
-            e.amount, e.description, e.is_billable,
-            e.receipt_url, e.customer_id, e.created_date, e.updated_date
+    `SELECT e.id, e.date as expense_date, e.category_id,
+            CASE e.category_id
+              WHEN 1 THEN 'Advertising'
+              WHEN 2 THEN 'Office Supplies'
+              WHEN 3 THEN 'Travel'
+              WHEN 4 THEN 'Utilities'
+              WHEN 5 THEN 'Rent'
+              WHEN 6 THEN 'Salaries'
+              WHEN 7 THEN 'Maintenance'
+              WHEN 8 THEN 'Insurance'
+              WHEN 9 THEN 'Professional Fees'
+              WHEN 10 THEN 'Miscellaneous'
+              ELSE 'Other'
+            END as category_name,
+            e.amount, e.total_amount, e.notes as description,
+            e.created_date, e.updated_date
      FROM expenses e
      ${whereClause}`,
     params
@@ -103,18 +129,23 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
 router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRequest, res: Response) => {
   const {
     expense_date,
+    date: expense_date_alt,
     category,
+    category_id,
     vendor_id,
     amount,
+    total_amount,
     tax_amount = 0,
     payment_mode = 'cash',
     reference_number,
     description,
+    notes,
     is_billable = false,
     invoice_id,
   } = req.body;
 
-  if (!expense_date || !amount) {
+  const eDateValue = expense_date || expense_date_alt;
+  if (!eDateValue || !amount) {
     throw createError('Expense date and amount are required', 400);
   }
 
@@ -122,14 +153,14 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
 
   const result = await query(
     `INSERT INTO expenses (
-      expense_date, category, amount, description, is_billable, agency_id, created_date, updated_date
+      date, category_id, amount, total_amount, notes, agency_id, created_date, updated_date
     ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
     [
-      expense_date,
-      category || null,
+      eDateValue,
+      category_id ? parseInt(String(category_id), 10) || null : null,
       parseFloat(String(amount)),
-      description || null,
-      is_billable ? true : false,
+      parseFloat(String(total_amount || amount)),
+      notes || description || null,
       agencyId,
     ]
   );
@@ -171,11 +202,12 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
   const updateFields: string[] = [];
   const updateParams: any[] = [];
 
-  if (expense_date !== undefined) { updateFields.push('expense_date = ?'); updateParams.push(expense_date); }
-  if (category !== undefined) { updateFields.push('category = ?'); updateParams.push(category); }
+  if (expense_date !== undefined) { updateFields.push('date = ?'); updateParams.push(expense_date); }
+  if (category !== undefined) { updateFields.push('category_id = ?'); updateParams.push(category); }
   if (amount !== undefined) { updateFields.push('amount = ?'); updateParams.push(parseFloat(String(amount))); }
-  if (description !== undefined) { updateFields.push('description = ?'); updateParams.push(description); }
-  if (is_billable !== undefined) { updateFields.push('is_billable = ?'); updateParams.push(is_billable ? true : false); }
+  if ((req.body as any).total_amount !== undefined) { updateFields.push('total_amount = ?'); updateParams.push(parseFloat(String((req.body as any).total_amount))); }
+  if (description !== undefined) { updateFields.push('notes = ?'); updateParams.push(description); }
+  if ((req.body as any).notes !== undefined) { updateFields.push('notes = ?'); updateParams.push((req.body as any).notes); }
 
   // Always update audit field
   updateFields.push('updated_date = NOW()');

@@ -1,4 +1,4 @@
-﻿import express, { Response } from 'express';
+import express, { Response } from 'express';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { agencyFilter, addAgencyFilter } from '../middleware/agencyFilter';
 import { query } from '../config/database';
@@ -6,6 +6,24 @@ import { logger } from '../config/logger';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 
 const router = express.Router();
+
+// The deployed DB vendors table uses customer-style columns:
+// fname, lname, company_name, cdisplay_name, customer_email, cmobile_phone,
+// cwork_phone, gstin_number, website, gst_treatment, place_of_supply,
+// currency_id, is_active, agency_id, created_date, updated_date
+
+const VENDOR_SELECT = `
+  id,
+  COALESCE(cdisplay_name, CONCAT(TRIM(COALESCE(fname,'')), ' ', TRIM(COALESCE(lname,''))), company_name) as name,
+  company_name,
+  customer_email as email,
+  COALESCE(cmobile_phone, cwork_phone) as phone,
+  gstin_number as gstin,
+  is_active,
+  agency_id,
+  created_date,
+  updated_date
+`;
 
 // Apply authentication and agency filter
 router.use(authenticate);
@@ -19,47 +37,26 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   let whereClause = 'WHERE 1=1';
   let params: any[] = [];
 
-  // Add agency filter
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
   whereClause = filtered.whereClause;
   params = filtered.params;
 
   if (search) {
-    whereClause += ` AND (name ILIKE ? OR email ILIKE ? OR phone ILIKE ?)`;
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    whereClause += ` AND (company_name ILIKE ? OR cdisplay_name ILIKE ? OR customer_email ILIKE ? OR cmobile_phone ILIKE ? OR CONCAT(fname,' ',lname) ILIKE ?)`;
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
   }
 
   if (active !== undefined) {
     whereClause += ` AND is_active = ?`;
-    params.push(active === 'true' ? true : false);
+    params.push(active === 'true' ? 1 : 0);
   }
 
-  // Get total count
   const countResult = await query(`SELECT COUNT(*) as count FROM vendors ${whereClause}`, params);
   const total = parseInt(countResult.rows[0]?.count ?? 0);
 
   const vendorsResult = await query(
-    `SELECT
-       id,
-       name,
-       email,
-       phone,
-       address_street as address,
-       address_city as city,
-       address_state as state,
-       address_zip_code as zip_code,
-       address_country,
-       gstin,
-       bank_name,
-       bank_account_number as account_number,
-       bank_ifsc_code as ifsc_code,
-       bank_account_holder_name,
-       payment_terms,
-       is_active,
-       created_date,
-       updated_date
-     FROM vendors ${whereClause}
-     ORDER BY name ASC
+    `SELECT ${VENDOR_SELECT} FROM vendors ${whereClause}
+     ORDER BY COALESCE(cdisplay_name, company_name, fname) ASC
      LIMIT ? OFFSET ?`,
     [...params, Number(limit), offset]
   );
@@ -83,32 +80,12 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   let whereClause = 'WHERE id = ?';
   let params: any[] = [id];
 
-  // Add agency filter
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
   whereClause = filtered.whereClause;
   params = filtered.params;
 
   const result = await query(
-    `SELECT
-       id,
-       name,
-       email,
-       phone,
-       address_street as address,
-       address_city as city,
-       address_state as state,
-       address_zip_code as zip_code,
-       address_country,
-       gstin,
-       bank_name,
-       bank_account_number as account_number,
-       bank_ifsc_code as ifsc_code,
-       bank_account_holder_name,
-       payment_terms,
-       is_active,
-       created_date,
-       updated_date
-     FROM vendors ${whereClause}`,
+    `SELECT ${VENDOR_SELECT} FROM vendors ${whereClause}`,
     params
   );
 
@@ -128,21 +105,9 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
     name,
     email,
     phone,
-    mobile,
-    gstin,
-    pan_number,
     company_name,
-    address,
-    city,
-    state,
-    zip_code,
+    gstin,
     website,
-    bank_name,
-    bank_branch,
-    account_number,
-    account_type,
-    ifsc_code,
-    remark,
   } = req.body;
 
   const vendorName = name || company_name;
@@ -150,13 +115,18 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
     throw createError('Vendor name or company name is required', 400);
   }
 
-  // Check if email already exists in same agency
+  // Split name for fname/lname
+  const nameParts = vendorName.trim().split(' ');
+  const fname = nameParts[0] || '';
+  const lname = nameParts.slice(1).join(' ') || '';
+
+  // Check email uniqueness in agency
   if (email) {
-    let emailWhere = 'WHERE email = ?';
+    let emailWhere = 'WHERE customer_email = ? AND is_active = 1';
     let emailParams: any[] = [email];
     const emailFiltered = addAgencyFilter(emailWhere, emailParams, req.agencyId ?? null);
-    const existingVendor = await query(`SELECT id FROM vendors ${emailFiltered.whereClause}`, emailFiltered.params);
-    if (existingVendor.rows.length > 0) {
+    const existing = await query(`SELECT id FROM vendors ${emailFiltered.whereClause}`, emailFiltered.params);
+    if (existing.rows.length > 0) {
       throw createError('Vendor with this email already exists', 400);
     }
   }
@@ -165,38 +135,25 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
 
   const result = await query(
     `INSERT INTO vendors (
-       name, email, phone,
-       address_street, address_city, address_state, address_zip_code, address_country,
-       gstin, bank_name, bank_account_number, bank_ifsc_code, bank_account_holder_name,
-       payment_terms, is_active, agency_id, created_date, updated_date
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true, ?, NOW(), NOW())`,
+       fname, lname, company_name, cdisplay_name, customer_email, cmobile_phone,
+       gstin_number, website, is_active, agency_id, created_by, created_date, updated_by, updated_date
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NOW(), ?, NOW())`,
     [
+      fname, lname,
+      company_name || vendorName,
       vendorName,
-      email || null,
-      phone || null,
-      address || null,
-      city || null,
-      state || null,
-      zip_code || null,
-      'India',
-      gstin || null,
-      bank_name || null,
-      account_number || null,
-      ifsc_code || null,
-      null, // bank_account_holder_name â€” not provided in form
-      30,
+      email || '',
+      phone || '',
+      gstin || '',
+      website || '',
       agencyId,
+      req.user?.id || 1,
+      req.user?.id || 1,
     ]
   );
 
   const insertId = result.insertId;
-  const vendorResult = await query(
-    `SELECT id, name, email, phone, address_street as address, address_city as city,
-            address_state as state, gstin, bank_name, bank_account_number as account_number,
-            bank_ifsc_code as ifsc_code, is_active, created_date, updated_date
-     FROM vendors WHERE id = ?`,
-    [insertId]
-  );
+  const vendorResult = await query(`SELECT ${VENDOR_SELECT} FROM vendors WHERE id = ?`, [insertId]);
 
   logger.info('Vendor created', { vendorId: insertId, name: vendorName });
 
@@ -210,64 +167,31 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
 // Update vendor
 router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  const {
-    name,
-    email,
-    phone,
-    mobile,
-    gstin,
-    pan_number,
-    company_name,
-    address,
-    city,
-    state,
-    zip_code,
-    website,
-    bank_name,
-    bank_branch,
-    account_number,
-    account_type,
-    ifsc_code,
-    remark,
-    is_active,
-  } = req.body;
+  const { name, email, phone, company_name, gstin, website, is_active } = req.body;
 
-  // Check if vendor exists with agency filter
   let whereClause = 'WHERE id = ?';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
 
-  const existingVendor = await query(`SELECT id FROM vendors ${filtered.whereClause}`, filtered.params);
-  if (existingVendor.rows.length === 0) {
+  const existing = await query(`SELECT id FROM vendors ${filtered.whereClause}`, filtered.params);
+  if (existing.rows.length === 0) {
     throw createError('Vendor not found', 404);
-  }
-
-  // Check if email already taken by another vendor in the same agency
-  if (email) {
-    let emailWhere = 'WHERE email = ? AND id != ?';
-    let emailParams: any[] = [email, id];
-    const emailFiltered = addAgencyFilter(emailWhere, emailParams, req.agencyId ?? null);
-    const emailCheck = await query(`SELECT id FROM vendors ${emailFiltered.whereClause}`, emailFiltered.params);
-    if (emailCheck.rows.length > 0) {
-      throw createError('Vendor with this email already exists', 400);
-    }
   }
 
   const updates: string[] = [];
   const updateParams: any[] = [];
 
-  if (name !== undefined) { updates.push('name = ?'); updateParams.push(name); }
-  if (email !== undefined) { updates.push('email = ?'); updateParams.push(email); }
-  if (phone !== undefined) { updates.push('phone = ?'); updateParams.push(phone); }
-  if (address !== undefined) { updates.push('address_street = ?'); updateParams.push(address); }
-  if (city !== undefined) { updates.push('address_city = ?'); updateParams.push(city); }
-  if (state !== undefined) { updates.push('address_state = ?'); updateParams.push(state); }
-  if (zip_code !== undefined) { updates.push('address_zip_code = ?'); updateParams.push(zip_code); }
-  if (gstin !== undefined) { updates.push('gstin = ?'); updateParams.push(gstin); }
-  if (bank_name !== undefined) { updates.push('bank_name = ?'); updateParams.push(bank_name); }
-  if (account_number !== undefined) { updates.push('bank_account_number = ?'); updateParams.push(account_number); }
-  if (ifsc_code !== undefined) { updates.push('bank_ifsc_code = ?'); updateParams.push(ifsc_code); }
-  if (is_active !== undefined) { updates.push('is_active = ?'); updateParams.push(is_active ? true : false); }
+  if (name !== undefined) {
+    const nameParts = name.trim().split(' ');
+    updates.push('fname = ?, lname = ?, cdisplay_name = ?');
+    updateParams.push(nameParts[0] || '', nameParts.slice(1).join(' ') || '', name);
+  }
+  if (company_name !== undefined) { updates.push('company_name = ?'); updateParams.push(company_name); }
+  if (email !== undefined) { updates.push('customer_email = ?'); updateParams.push(email); }
+  if (phone !== undefined) { updates.push('cmobile_phone = ?'); updateParams.push(phone); }
+  if (gstin !== undefined) { updates.push('gstin_number = ?'); updateParams.push(gstin); }
+  if (website !== undefined) { updates.push('website = ?'); updateParams.push(website); }
+  if (is_active !== undefined) { updates.push('is_active = ?'); updateParams.push(is_active ? 1 : 0); }
 
   if (updates.length === 0) {
     throw createError('No fields to update', 400);
@@ -276,18 +200,9 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
   updates.push('updated_date = NOW()');
   updateParams.push(id);
 
-  await query(
-    `UPDATE vendors SET ${updates.join(', ')} WHERE id = ?`,
-    updateParams
-  );
+  await query(`UPDATE vendors SET ${updates.join(', ')} WHERE id = ?`, updateParams);
 
-  const vendorResult = await query(
-    `SELECT id, name, email, phone, address_street as address, address_city as city,
-            address_state as state, gstin, bank_name, bank_account_number as account_number,
-            bank_ifsc_code as ifsc_code, is_active, created_date, updated_date
-     FROM vendors WHERE id = ?`,
-    [id]
-  );
+  const vendorResult = await query(`SELECT ${VENDOR_SELECT} FROM vendors WHERE id = ?`, [id]);
 
   logger.info('Vendor updated', { vendorId: id });
 
@@ -302,33 +217,18 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
 router.delete('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
-  // Check if vendor exists with agency filter
   let whereClause = 'WHERE id = ?';
   let params: any[] = [id];
   const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null);
 
-  const existingVendor = await query(`SELECT id FROM vendors ${filtered.whereClause}`, filtered.params);
-  if (existingVendor.rows.length === 0) {
+  const existing = await query(`SELECT id FROM vendors ${filtered.whereClause}`, filtered.params);
+  if (existing.rows.length === 0) {
     throw createError('Vendor not found', 404);
   }
 
-  // Check if vendor has associated purchases
-  const purchasesCheck = await query('SELECT COUNT(*) as count FROM purchases WHERE vendor_id = ?', [id]);
-
-  if (parseInt(purchasesCheck.rows[0]?.count ?? 0) > 0) {
-    // Soft delete
-    await query('UPDATE vendors SET is_active = false, updated_date = NOW() WHERE id = ?', [id]);
-    logger.info('Vendor deactivated (has associated purchases)', { vendorId: id });
-
-    return res.json({
-      success: true,
-      message: 'Vendor deactivated successfully (has associated purchases)'
-    });
-  }
-
-  // Hard delete
-  await query('DELETE FROM vendors WHERE id = ?', [id]);
-  logger.info('Vendor deleted', { vendorId: id });
+  // Soft delete — set is_active = 0
+  await query('UPDATE vendors SET is_active = 0, updated_date = NOW() WHERE id = ?', [id]);
+  logger.info('Vendor deactivated', { vendorId: id });
 
   res.json({
     success: true,
@@ -337,4 +237,3 @@ router.delete('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: A
 }));
 
 export default router;
-

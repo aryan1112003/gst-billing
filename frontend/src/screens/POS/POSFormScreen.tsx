@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface POSFormData {
     customerName: string;
@@ -69,7 +70,7 @@ export const POSFormScreen: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to fetch POS sale:', error);
-            Alert.alert('Error', 'Failed to load sale details');
+            showError('Failed to load sale details');
         } finally {
             setLoading(false);
         }
@@ -77,15 +78,15 @@ export const POSFormScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.saleDate.trim()) {
-            Alert.alert('Validation Error', 'Please enter sale date');
+            showAlert('Validation Error', 'Please enter sale date');
             return;
         }
         if (!formData.subtotal.trim()) {
-            Alert.alert('Validation Error', 'Please enter subtotal');
+            showAlert('Validation Error', 'Please enter subtotal');
             return;
         }
         if (!formData.total.trim()) {
-            Alert.alert('Validation Error', 'Please enter total');
+            showAlert('Validation Error', 'Please enter total');
             return;
         }
 
@@ -101,16 +102,16 @@ export const POSFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.pos.update(posId.toString(), payload);
-                Alert.alert('Success', 'Sale updated successfully');
+                showSuccess('Sale updated successfully');
             } else {
                 await api.pos.create(payload);
-                Alert.alert('Success', 'Sale created successfully');
+                showSuccess('Sale created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save sale:', error);
-            Alert.alert('Error', error.message || 'Failed to save sale');
+            showError(error.message || 'Failed to save sale');
         } finally {
             setSaving(false);
         }

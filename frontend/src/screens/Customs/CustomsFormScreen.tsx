@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface CustomsFormData {
     type: string;
@@ -81,7 +82,7 @@ export const CustomsFormScreen: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to fetch shipment:', error);
-            Alert.alert('Error', 'Failed to load shipment details');
+            showError('Failed to load shipment details');
         } finally {
             setLoading(false);
         }
@@ -89,19 +90,19 @@ export const CustomsFormScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.type.trim()) {
-            Alert.alert('Validation Error', 'Please select shipment type');
+            showAlert('Validation Error', 'Please select shipment type');
             return;
         }
         if (!formData.partyName.trim()) {
-            Alert.alert('Validation Error', 'Please enter party name');
+            showAlert('Validation Error', 'Please enter party name');
             return;
         }
         if (!formData.country.trim()) {
-            Alert.alert('Validation Error', 'Please enter country');
+            showAlert('Validation Error', 'Please enter country');
             return;
         }
         if (!formData.shipmentDate.trim()) {
-            Alert.alert('Validation Error', 'Please enter shipment date');
+            showAlert('Validation Error', 'Please enter shipment date');
             return;
         }
 
@@ -116,16 +117,16 @@ export const CustomsFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.customs.update(customsId.toString(), payload);
-                Alert.alert('Success', 'Shipment updated successfully');
+                showSuccess('Shipment updated successfully');
             } else {
                 await api.customs.create(payload);
-                Alert.alert('Success', 'Shipment created successfully');
+                showSuccess('Shipment created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save shipment:', error);
-            Alert.alert('Error', error.message || 'Failed to save shipment');
+            showError(error.message || 'Failed to save shipment');
         } finally {
             setSaving(false);
         }

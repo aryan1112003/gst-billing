@@ -9,6 +9,7 @@ import { invoicesAPI, customersAPI, itemsAPI } from '../../services/api';
 import { EmailRecipientSection } from '../../components/Invoice/EmailRecipientSection';
 import { RootState } from '../../store/store';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface LineItem {
   id: string;
@@ -144,7 +145,7 @@ export const InvoiceFormScreen: React.FC = ({ navigation, route }: any) => {
       console.log('Mapped line items:', mappedLineItems);
     } catch (err: any) {
       console.error('Error fetching invoice:', err);
-      Alert.alert('Error', `Failed to load invoice: ${err.message}`);
+      showError(`Failed to load invoice: ${err.message}`);
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -235,35 +236,35 @@ export const InvoiceFormScreen: React.FC = ({ navigation, route }: any) => {
   const handleSave = async () => {
     // Validation
     if (!customerId) {
-      Alert.alert('Error', 'Please select a customer');
+      showError('Please select a customer');
       return;
     }
     if (!issueDate) {
-      Alert.alert('Error', 'Please enter issue date');
+      showError('Please enter issue date');
       return;
     }
     if (!dueDate) {
-      Alert.alert('Error', 'Please enter due date');
+      showError('Please enter due date');
       return;
     }
     if (new Date(dueDate) < new Date(issueDate)) {
-      Alert.alert('Error', 'Due date must be greater than or equal to issue date');
+      showError('Due date must be greater than or equal to issue date');
       return;
     }
     if (lineItems.length === 0) {
-      Alert.alert('Error', 'Please add at least one item');
+      showError('Please add at least one item');
       return;
     }
     if (lineItems.some(item => !item.itemId || item.quantity <= 0)) {
-      Alert.alert('Error', 'Please fill all item details correctly');
+      showError('Please fill all item details correctly');
       return;
     }
     if (lineItems.some(item => item.unitPrice <= 0)) {
-      Alert.alert('Error', 'Unit price must be greater than zero');
+      showError('Unit price must be greater than zero');
       return;
     }
     if (lineItems.some(item => item.discount < 0 || item.discount > 100)) {
-      Alert.alert('Error', 'Discount must be between 0 and 100');
+      showError('Discount must be between 0 and 100');
       return;
     }
 
@@ -289,15 +290,15 @@ export const InvoiceFormScreen: React.FC = ({ navigation, route }: any) => {
 
       if (invoiceId) {
         await invoicesAPI.update(invoiceId, invoiceData);
-        Alert.alert('Success', 'Invoice updated successfully!');
+        showSuccess('Invoice updated successfully!');
       } else {
         await invoicesAPI.create(invoiceData);
-        Alert.alert('Success', 'Invoice created successfully!');
+        showSuccess('Invoice created successfully!');
       }
       // Navigate back and trigger refresh
       navigation.navigate('Invoices', { refresh: Date.now() });
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save invoice');
+      showError(err.message || 'Failed to save invoice');
     } finally {
       setLoading(false);
     }

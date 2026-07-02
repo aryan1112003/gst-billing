@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { MainLayout } from '../../components/Layout/MainLayout';
 import { colors } from '../../theme/colors';
 import { vendorsAPI } from '../../services/api';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -42,7 +43,7 @@ export const VendorFormScreen: React.FC = ({ navigation, route }: any) => {
       });
     } catch (err: any) {
       console.error('Failed to fetch vendor:', err);
-      Alert.alert('Error', err.message || 'Failed to load vendor');
+      showError(err.message || 'Failed to load vendor');
     } finally {
       setLoading(false);
     }
@@ -50,7 +51,7 @@ export const VendorFormScreen: React.FC = ({ navigation, route }: any) => {
 
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
-      Alert.alert('Validation Error', 'Vendor name is required');
+      showAlert('Validation Error', 'Vendor name is required');
       return;
     }
 
@@ -69,7 +70,7 @@ export const VendorFormScreen: React.FC = ({ navigation, route }: any) => {
     } catch (err: any) {
       console.error('Failed to save vendor:', err);
       setLoading(false);
-      Alert.alert('Error', err.message || 'Failed to save vendor');
+      showError(err.message || 'Failed to save vendor');
     }
   };
 

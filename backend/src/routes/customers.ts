@@ -31,7 +31,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
 
   if (active !== undefined) {
     whereClause += ` AND is_active = ?`;
-    params.push(active === 'true' ? true : false);
+    params.push(active === 'true' ? 1 : 0);
   }
 
   // Get total count
@@ -42,7 +42,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const customersResult = await query(
     `SELECT 
        id, 
-       CONCAT(fname, ' ', lname) as name,
+       COALESCE(NULLIF(TRIM(cdisplay_name),''), NULLIF(TRIM(company_name),''), TRIM(CONCAT(fname, ' ', lname))) as name,
        customer_email as email,
        COALESCE(cwork_phone, cmobile_phone) as phone,
        '' as address,
@@ -87,7 +87,7 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await query(
     `SELECT 
        id,
-       CONCAT(fname, ' ', lname) as name,
+       COALESCE(NULLIF(TRIM(cdisplay_name),''), NULLIF(TRIM(company_name),''), TRIM(CONCAT(fname, ' ', lname))) as name,
        customer_email as email,
        COALESCE(cwork_phone, cmobile_phone) as phone,
        '' as address,
@@ -184,7 +184,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
       gstin || '',
       21, // place_of_supply - default
       21, // currency_id - INR
-      true,  // is_active
+      1,  // is_active (integer: 1=active)
       agencyId,  // agency_id from authenticated user
       req.user?.id || 1,  // created_by
       req.user?.id || 1,  // updated_by
@@ -198,7 +198,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
   const customerResult = await query(
     `SELECT 
        id,
-       CONCAT(fname, ' ', lname) as name,
+       COALESCE(NULLIF(TRIM(cdisplay_name),''), NULLIF(TRIM(company_name),''), TRIM(CONCAT(fname, ' ', lname))) as name,
        customer_email as email,
        COALESCE(cwork_phone, cmobile_phone) as phone,
        '' as address,
@@ -304,7 +304,7 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
   const customerResult = await query(
     `SELECT 
        id,
-       CONCAT(fname, ' ', lname) as name,
+       COALESCE(NULLIF(TRIM(cdisplay_name),''), NULLIF(TRIM(company_name),''), TRIM(CONCAT(fname, ' ', lname))) as name,
        customer_email as email,
        COALESCE(cwork_phone, cmobile_phone) as phone,
        '' as address,
@@ -344,7 +344,7 @@ router.delete('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: A
 
   if (parseInt(invoicesCheck.rows[0]?.count ?? 0) > 0 || parseInt(paymentsCheck.rows[0]?.count ?? 0) > 0) {
     // Soft delete â€” deactivate instead of hard delete
-    await query('UPDATE customers SET is_active = false, updated_by = ?, updated_date = NOW() WHERE id = ?', [req.user?.id || 1, id]);
+    await query('UPDATE customers SET is_active = 0, updated_by = ?, updated_date = NOW() WHERE id = ?', [req.user?.id || 1, id]);
     logger.info('Customer deactivated (has associated records)', { customerId: id });
 
     res.json({

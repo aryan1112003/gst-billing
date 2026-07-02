@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+﻿import { Request, Response } from 'express';
 import { query } from '../config/database';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 import { AuthRequest } from '../middleware/auth';
@@ -23,7 +23,7 @@ export class PurchaseController {
     params = filtered.params;
 
     if (search) {
-      whereClause += ` AND (p.purchase_number LIKE ? OR v.vendor_name LIKE ?)`;
+      whereClause += ` AND (CAST(p.id AS TEXT) LIKE ? OR v.vendor_name LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`);
     }
 
@@ -38,12 +38,12 @@ export class PurchaseController {
     }
 
     if (fromDate) {
-      whereClause += ` AND p.purchase_date >= ?`;
+      whereClause += ` AND p.date >= ?`;
       params.push(fromDate);
     }
 
     if (toDate) {
-      whereClause += ` AND p.purchase_date <= ?`;
+      whereClause += ` AND p.date <= ?`;
       params.push(toDate);
     }
 
@@ -54,14 +54,17 @@ export class PurchaseController {
     );
     const total = parseInt(countResult.rows[0]?.count ?? 0);
 
-    // Get purchases
+    // Get purchases with item count
     const purchasesResult = await query(
       `SELECT p.*,
-              v.vendor_name,
-              v.vendor_email
+              COALESCE(NULLIF(TRIM(p.vendor_name),''), v.vendor_name) AS resolved_vendor_name,
+              COALESCE(NULLIF(TRIM(p.vendor_email),''), v.vendor_email) AS resolved_vendor_email,
+              COUNT(pi.id) AS items_count
        FROM purchase p
        LEFT JOIN vendors v ON p.vendor_id = v.id
+       LEFT JOIN purchase_items pi ON pi.purchase_id = p.id
        ${whereClause}
+       GROUP BY p.id, v.vendor_name, v.vendor_email
        ORDER BY p.created_date DESC
        LIMIT ? OFFSET ?`,
       [...params, Number(limit), offset]
@@ -69,15 +72,19 @@ export class PurchaseController {
 
     const purchases = purchasesResult.rows.map((row: any) => ({
       id: row.id,
-      purchaseNumber: row.purchase_number,
+      purchaseNumber: ('PO-' + String(row.id).padStart(4,'0')),
       vendorId: row.vendor_id,
+      vendorName: row.resolved_vendor_name || row.vendor_name || '',
       vendor: {
         id: row.vendor_id,
-        name: row.vendor_name,
-        email: row.vendor_email,
+        name: row.resolved_vendor_name || row.vendor_name,
+        email: row.resolved_vendor_email || row.vendor_email,
       },
-      purchaseDate: row.purchase_date,
-      subtotal: parseFloat(row.subtotal ?? 0),
+      vendor_name: row.resolved_vendor_name || row.vendor_name,
+      vendor_email: row.resolved_vendor_email || row.vendor_email,
+      purchaseDate: row.date,
+      itemsCount: parseInt(row.items_count ?? 0),
+      subtotal: parseFloat(row.sub_total ?? 0),
       taxAmount: parseFloat(row.tax_amount ?? 0),
       totalAmount: parseFloat(row.total_amount ?? 0),
       status: row.status,
@@ -119,7 +126,7 @@ export class PurchaseController {
               COALESCE(v.vendor_phone, v.vendor_mobile) as vendor_phone,
               v.address as vendor_address
        FROM purchase p
-       LEFT JOIN vendors v ON p.vendor_id = v.id
+       LEFT JOIN vendors v ON p.customer_id = v.id
        ${whereClause}`,
       params
     );
@@ -159,17 +166,17 @@ export class PurchaseController {
 
     const purchase = {
       id: purchaseRow.id,
-      purchaseNumber: purchaseRow.purchase_number,
-      vendorId: purchaseRow.vendor_id,
+      purchaseNumber: ('PO-' + String(purchaseRow.id).padStart(4,'0')),
+      vendorId: purchaseRow.customer_id,
       vendor: {
-        id: purchaseRow.vendor_id,
+        id: purchaseRow.customer_id,
         name: purchaseRow.vendor_name,
         email: purchaseRow.vendor_email,
         phone: purchaseRow.vendor_phone,
         address: purchaseRow.vendor_address,
       },
-      purchaseDate: purchaseRow.purchase_date,
-      subtotal: parseFloat(purchaseRow.subtotal ?? 0),
+      purchaseDate: purchaseRow.date,
+      subtotal: parseFloat(purchaseRow.sub_total ?? 0),
       taxAmount: parseFloat(purchaseRow.tax_amount ?? 0),
       totalAmount: parseFloat(purchaseRow.total_amount ?? 0),
       status: purchaseRow.status,
@@ -252,7 +259,7 @@ export class PurchaseController {
               COALESCE(v.vendor_phone, v.vendor_mobile) as vendor_phone,
               v.address as vendor_address
        FROM purchase p
-       LEFT JOIN vendors v ON p.vendor_id = v.id
+       LEFT JOIN vendors v ON p.customer_id = v.id
        ${whereClause}`,
       params
     );
@@ -285,15 +292,15 @@ export class PurchaseController {
 
     return {
       id: purchaseRow.id,
-      purchaseNumber: purchaseRow.purchase_number,
+      purchaseNumber: ('PO-' + String(purchaseRow.id).padStart(4,'0')),
       vendor: {
         name: purchaseRow.vendor_name,
         email: purchaseRow.vendor_email,
         phone: purchaseRow.vendor_phone,
         address: purchaseRow.vendor_address,
       },
-      purchaseDate: purchaseRow.purchase_date,
-      subtotal: parseFloat(purchaseRow.subtotal ?? 0),
+      purchaseDate: purchaseRow.date,
+      subtotal: parseFloat(purchaseRow.sub_total ?? 0),
       taxAmount: parseFloat(purchaseRow.tax_amount ?? 0),
       totalAmount: parseFloat(purchaseRow.total_amount ?? 0),
       notes: purchaseRow.notes,
@@ -301,3 +308,7 @@ export class PurchaseController {
     };
   }
 }
+
+
+
+

@@ -52,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onNavigate }) => 
 
   // Reactive device type detection (re-renders on resize/rotation)
   const { isMobile, isTablet, isDesktop, rs } = useResponsive();
+  const isCompact = isTablet; // icon-only mode on tablet
 
   const handleLogout = () => {
     console.log('Logout button clicked');
@@ -63,6 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onNavigate }) => 
       style={[
         styles.container,
         isMobile && styles.mobileContainer,
+        isCompact && styles.compactContainer,
         { backgroundColor: themeColors.neutral[900], borderRightWidth: 1, borderRightColor: 'rgba(255, 255, 255, 0.05)' }
       ]}
     >
@@ -70,14 +72,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onNavigate }) => 
       <View style={[
         styles.header,
         isMobile && styles.mobileHeader,
+        isCompact && styles.compactHeader,
       ]}>
-        <View style={styles.logoContainer}>
+        <View style={[styles.logoContainer, isCompact && styles.compactLogoContainer]}>
           {agency?.logoUrl ? (
             <Image
               source={{ uri: agency.logoUrl.startsWith('http') ? agency.logoUrl : `${BASE_SERVER_URL}${agency.logoUrl}` }}
               style={[
                 styles.logoImage,
                 isMobile && styles.mobileLogoImage,
+                isCompact && styles.compactLogoImage,
               ]}
               resizeMode="contain"
             />
@@ -86,75 +90,94 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onNavigate }) => 
               colors={themeColors.primary.gradient as [string, string]}
               style={[
                 styles.logo,
-                isMobile && styles.mobileLogo
+                isMobile && styles.mobileLogo,
+                isCompact && styles.compactLogo,
               ]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
               <MaterialIcons
                 name="business"
-                size={isMobile ? 22 : 28}
+                size={isCompact ? 20 : isMobile ? 22 : 28}
                 color="#FFFFFF"
               />
             </LinearGradient>
           )}
-          <Text style={[
-            styles.companyName,
-            isMobile && styles.mobileCompanyName,
-            { color: '#FFFFFF' }
-          ]}>
-            {agency?.companyName || '111prods'}
-          </Text>
-          <Text style={[
-            styles.companyTagline,
-            isMobile && styles.mobileCompanyTagline,
-            { color: 'rgba(255, 255, 255, 0.5)' }
-          ]}>
-            Enterprise Solutions
-          </Text>
+          {!isCompact && (
+            <>
+              <Text style={[
+                styles.companyName,
+                isMobile && styles.mobileCompanyName,
+                { color: '#FFFFFF' }
+              ]}>
+                {agency?.companyName || '111prods'}
+              </Text>
+              <Text style={[
+                styles.companyTagline,
+                isMobile && styles.mobileCompanyTagline,
+                { color: 'rgba(255, 255, 255, 0.5)' }
+              ]}>
+                Enterprise Solutions
+              </Text>
+            </>
+          )}
         </View>
 
-        <View style={[
-          styles.userSection,
-          isMobile && styles.mobileUserSection,
-          { backgroundColor: 'rgba(255, 255, 255, 0.03)', borderColor: 'rgba(255, 255, 255, 0.05)', borderWidth: 1 }
-        ]}>
+        {!isCompact && (
+          <View style={[
+            styles.userSection,
+            isMobile && styles.mobileUserSection,
+            { backgroundColor: 'rgba(255, 255, 255, 0.03)', borderColor: 'rgba(255, 255, 255, 0.05)', borderWidth: 1 }
+          ]}>
+            <LinearGradient
+              colors={themeColors.accent.gradient as [string, string]}
+              style={[
+                styles.avatarGradient,
+                isMobile && styles.mobileAvatarGradient
+              ]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={[
+                styles.avatarText,
+                isMobile && styles.mobileAvatarText
+              ]}>
+                {user?.name?.charAt(0) || 'U'}
+              </Text>
+            </LinearGradient>
+            <View style={styles.userInfo}>
+              <Text style={[
+                styles.userName,
+                isMobile && styles.mobileUserName,
+                { color: '#FFFFFF' }
+              ]} numberOfLines={1}>
+                {user?.name || 'User'}
+              </Text>
+              <Text style={[
+                styles.userRole,
+                isMobile && styles.mobileUserRole,
+                { color: 'rgba(255, 255, 255, 0.6)' }
+              ]}>
+                {user?.accountType === 'user' ? 'Individual Account' : (roleDescriptions[(user?.role || 'user') as UserRole] || user?.role || 'User')}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Compact avatar (tablet) */}
+        {isCompact && (
           <LinearGradient
             colors={themeColors.accent.gradient as [string, string]}
-            style={[
-              styles.avatarGradient,
-              isMobile && styles.mobileAvatarGradient
-            ]}
+            style={styles.compactAvatar}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Text style={[
-              styles.avatarText,
-              isMobile && styles.mobileAvatarText
-            ]}>
-              {user?.name?.charAt(0) || 'U'}
-            </Text>
+            <Text style={styles.compactAvatarText}>{user?.name?.charAt(0) || 'U'}</Text>
           </LinearGradient>
-          <View style={styles.userInfo}>
-            <Text style={[
-              styles.userName,
-              isMobile && styles.mobileUserName,
-              { color: '#FFFFFF' }
-            ]} numberOfLines={1}>
-              {user?.name || 'User'}
-            </Text>
-            <Text style={[
-              styles.userRole,
-              isMobile && styles.mobileUserRole,
-              { color: 'rgba(255, 255, 255, 0.6)' }
-            ]}>
-              {user?.accountType === 'user' ? 'Individual Account' : (roleDescriptions[(user?.role || 'user') as UserRole] || user?.role || 'User')}
-            </Text>
-          </View>
-        </View>
+        )}
       </View>
 
-      <View style={styles.dividerContainer}>
+      <View style={[styles.dividerContainer, isCompact && styles.compactDividerContainer]}>
         <View style={[styles.divider, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }]} />
       </View>
 
@@ -162,7 +185,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onNavigate }) => 
       <ScrollView
         style={[
           styles.menuContainer,
-          isMobile && styles.mobileMenuContainer
+          isMobile && styles.mobileMenuContainer,
+          isCompact && styles.compactMenuContainer,
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -171,6 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onNavigate }) => 
             key={item.id}
             style={[
               styles.menuItem,
+              isCompact && styles.compactMenuItem,
               activeRoute === item.route && styles.activeMenuItem
             ]}
             onPress={() => onNavigate(item.route)}
@@ -186,6 +211,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onNavigate }) => 
             )}
             <View style={[
               styles.menuIconContainer,
+              isCompact && styles.compactMenuIconContainer,
               { backgroundColor: activeRoute === item.route ? 'rgba(255, 255, 255, 0.1)' : 'transparent' }
             ]}>
               <MaterialIcons
@@ -194,37 +220,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onNavigate }) => 
                 color={activeRoute === item.route ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)'}
               />
             </View>
-            <Text style={[
-              styles.menuText,
-              isMobile && styles.mobileMenuText,
-              { color: activeRoute === item.route ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)', fontWeight: activeRoute === item.route ? '700' : '500' }
-            ]}>
-              {item.title}
-            </Text>
-            {activeRoute === item.route && (
-              <View style={[styles.activeIndicator, { backgroundColor: '#FFFFFF' }]} />
+            {!isCompact && (
+              <>
+                <Text style={[
+                  styles.menuText,
+                  isMobile && styles.mobileMenuText,
+                  { color: activeRoute === item.route ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)', fontWeight: activeRoute === item.route ? '700' : '500' }
+                ]}>
+                  {item.title}
+                </Text>
+                {activeRoute === item.route && (
+                  <View style={[styles.activeIndicator, { backgroundColor: '#FFFFFF' }]} />
+                )}
+              </>
             )}
           </TouchableOpacity>
         ))}
       </ScrollView>
 
       {/* Footer */}
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+      <View style={[styles.footer, isCompact && styles.compactFooter]}>
+        <TouchableOpacity style={[styles.logoutButton, isCompact && styles.compactLogoutButton]} onPress={handleLogout}>
           <LinearGradient
             colors={themeColors.error.gradient as [string, string]}
-            style={styles.logoutGradient}
+            style={[styles.logoutGradient, isCompact && styles.compactLogoutGradient]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           >
             <MaterialIcons name="logout" size={18} color="#FFFFFF" />
-            <Text style={styles.logoutText}>Logout</Text>
+            {!isCompact && <Text style={styles.logoutText}>Logout</Text>}
           </LinearGradient>
         </TouchableOpacity>
 
-        <Text style={styles.copyright}>
-          {`© 2026 ${agency?.companyName || 'ERP System'}`}
-        </Text>
+        {!isCompact && (
+          <Text style={styles.copyright}>
+            {`© 2026 ${agency?.companyName || 'ERP System'}`}
+          </Text>
+        )}
       </View>
     </View>
   );
@@ -237,6 +269,10 @@ const styles = StyleSheet.create({
   },
   mobileContainer: {
     width: '100%',
+  },
+  compactContainer: {
+    width: 72,
+    alignItems: 'center',
   },
   header: {
     padding: 24,
@@ -436,5 +472,83 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     fontWeight: '500',
+  },
+  compactHeader: {
+    padding: 12,
+    paddingTop: 24,
+    alignItems: 'center',
+    width: 72,
+  },
+  compactLogoContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  compactLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    marginBottom: 0,
+  },
+  compactLogoImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    marginBottom: 0,
+  },
+  compactAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  compactAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  compactDividerContainer: {
+    paddingHorizontal: 8,
+    width: 72,
+  },
+  compactMenuContainer: {
+    paddingHorizontal: 0,
+    width: 72,
+    alignItems: 'center',
+  },
+  compactMenuItem: {
+    paddingHorizontal: 0,
+    paddingVertical: 10,
+    marginVertical: 2,
+    width: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  compactMenuIconContainer: {
+    marginRight: 0,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+  },
+  compactFooter: {
+    padding: 12,
+    paddingBottom: 24,
+    alignItems: 'center',
+    width: 72,
+  },
+  compactLogoutButton: {
+    marginBottom: 0,
+    width: 44,
+  },
+  compactLogoutGradient: {
+    paddingVertical: 10,
+    paddingHorizontal: 0,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

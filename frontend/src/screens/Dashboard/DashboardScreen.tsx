@@ -123,11 +123,13 @@ export const DashboardScreen: React.FC = ({ navigation }: any) => {
 
       const results = await Promise.all(promises);
 
+      const getTotal = (r: any) =>
+        r?.pagination?.total ?? r?.data?.pagination?.total ?? 0;
       let dataIndex = 0;
       setDashboardData({
-        totalCustomers: permissions.canViewCustomers ? (results[dataIndex++]?.pagination?.total || 0) : null,
-        totalInvoices: permissions.canViewFinancials ? (results[dataIndex++]?.pagination?.total || 0) : null,
-        totalItems: permissions.canViewInventory ? (results[dataIndex++]?.pagination?.total || 0) : null,
+        totalCustomers: permissions.canViewCustomers ? getTotal(results[dataIndex++]) : null,
+        totalInvoices: permissions.canViewFinancials ? getTotal(results[dataIndex++]) : null,
+        totalItems: permissions.canViewInventory ? getTotal(results[dataIndex++]) : null,
       });
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
@@ -479,31 +481,13 @@ export const DashboardScreen: React.FC = ({ navigation }: any) => {
         >
           <View style={s.sectionContent}>
             <Text style={[s.sectionTitle, { color: themeColors.text.primary }]}>Recent Activity</Text>
-            <View style={[s.activityItem, { borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' }]}>
-              <View style={[s.activityIcon, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)' }]}>
-                <MaterialIcons name="receipt" size={20} color={themeColors.primary.main} />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={[s.activityText, { color: themeColors.text.primary }]}>Invoice #INV-001 created for Customer ABC</Text>
-                <Text style={[s.activityTime, { color: themeColors.text.muted }]}>2 hours ago</Text>
-              </View>
-            </View>
-            <View style={[s.activityItem, { borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' }]}>
-              <View style={[s.activityIcon, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)' }]}>
-                <MaterialIcons name="payment" size={20} color={themeColors.success.main} />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={[s.activityText, { color: themeColors.text.primary }]}>Payment received from Customer XYZ</Text>
-                <Text style={[s.activityTime, { color: themeColors.text.muted }]}>4 hours ago</Text>
-              </View>
-            </View>
             <View style={[s.activityItem, { borderBottomColor: 'transparent' }]}>
               <View style={[s.activityIcon, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)' }]}>
-                <MaterialIcons name="person-add" size={20} color={themeColors.secondary.main} />
+                <MaterialIcons name="history" size={20} color={themeColors.text.muted} />
               </View>
               <View style={styles.activityContent}>
-                <Text style={[s.activityText, { color: themeColors.text.primary }]}>New customer "Tech Solutions" added</Text>
-                <Text style={[s.activityTime, { color: themeColors.text.muted }]}>1 day ago</Text>
+                <Text style={[s.activityText, { color: themeColors.text.secondary }]}>Activity log coming soon</Text>
+                <Text style={[s.activityTime, { color: themeColors.text.muted }]}>Recent actions will appear here</Text>
               </View>
             </View>
           </View>

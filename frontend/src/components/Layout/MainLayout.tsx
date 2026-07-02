@@ -56,7 +56,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         if (!isMobile && sidebarVisible) setSidebarVisible(false);
     }, [isMobile]);
 
-    const sidebarWidth = useMemo(() => rs(280, 260, 280), [isMobile, isTablet]);
+    const sidebarWidth = useMemo(() => rs(280, 72, 280), [isMobile, isTablet]);
 
     const toggleSidebar = () => {
         if (isMobile) {

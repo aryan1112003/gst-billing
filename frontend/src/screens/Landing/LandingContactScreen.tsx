@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LandingNav } from '../../components/Landing/LandingNav';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 export const LandingContactScreen: React.FC = () => {
     const { isMobile, isTablet, rs } = useResponsive();
@@ -25,10 +26,10 @@ export const LandingContactScreen: React.FC = () => {
 
     const handleSubmit = () => {
         if (!formData.name || !formData.email || !formData.message) {
-            Alert.alert('Error', 'Please fill in name, email, and message fields');
+            showError('Please fill in name, email, and message fields');
             return;
         }
-        Alert.alert('Message Sent!', 'Thank you for reaching out. Our team will get back to you within 24 hours.');
+        showAlert('Message Sent!', 'Thank you for reaching out. Our team will get back to you within 24 hours.');
         setFormData({ name: '', email: '', phone: '', gstin: '', subject: '', message: '' });
     };
 

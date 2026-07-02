@@ -10,6 +10,7 @@ import { TableColumn, PaginationState } from '../../types';
 import { colors } from '../../theme/colors';
 import { vendorsAPI } from '../../services/api';
 import { confirmDelete, showDeleteSuccess, showDeleteError } from '../../utils/deleteConfirm';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface Vendor {
   id: string;
@@ -82,7 +83,7 @@ export const VendorsScreen: React.FC = ({ navigation }: any) => {
     } catch (err: any) {
       console.error('❌ Failed to fetch vendors:', err);
       console.error('Error details:', err.response?.data || err.message);
-      Alert.alert('Error', err.message || 'Failed to load vendors');
+      showError(err.message || 'Failed to load vendors');
     } finally {
       setLoading(false);
     }

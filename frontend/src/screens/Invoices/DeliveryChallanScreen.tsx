@@ -13,6 +13,7 @@ import { confirmDelete, showDeleteSuccess, showDeleteError } from '../../utils/d
 import { EmailInvoiceDialog } from '../../components/Invoice/EmailInvoiceDialog';
 import { RootState } from '../../store/store';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface Challan {
     id: string;
@@ -201,12 +202,12 @@ export const DeliveryChallanScreen: React.FC = ({ navigation }: any) => {
                 link.click();
                 document.body.removeChild(link);
                 window.URL.revokeObjectURL(url);
-                Alert.alert('Success', `Challan ${item.number} downloaded successfully!`);
+                showSuccess(`Challan ${item.number} downloaded successfully!`);
             } else {
-                Alert.alert('Success', 'PDF download started');
+                showSuccess('PDF download started');
             }
         } catch (err: any) {
-            Alert.alert('Download Failed', err.message || 'Failed to download PDF.');
+            showAlert('Download Failed', err.message || 'Failed to download PDF.');
         } finally {
             setLoading(false);
         }
@@ -217,11 +218,11 @@ export const DeliveryChallanScreen: React.FC = ({ navigation }: any) => {
         try {
             setEmailLoading(true);
             await invoicesAPI.emailInvoice(selectedChallan.id, data);
-            Alert.alert('Email Sent!', `Challan ${selectedChallan.number} has been sent.`);
+            showAlert('Email Sent!', `Challan ${selectedChallan.number} has been sent.`);
             setEmailDialogVisible(false);
             setSelectedChallan(null);
         } catch (err: any) {
-            Alert.alert('Email Failed', err.message || 'Failed to send email.');
+            showAlert('Email Failed', err.message || 'Failed to send email.');
         } finally {
             setEmailLoading(false);
         }

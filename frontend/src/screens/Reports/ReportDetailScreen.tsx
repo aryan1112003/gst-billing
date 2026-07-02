@@ -7,6 +7,7 @@ import { colors } from '../../theme/colors';
 import { useTheme } from '../../contexts/ThemeContext';
 import { api } from '../../services/api';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface ReportDetailScreenProps {
   navigation: any;
@@ -99,7 +100,7 @@ export const ReportDetailScreen = ({ navigation, route }: any) => {
     } catch (err: any) {
       console.error('Failed to fetch report:', err);
       setError(err.message || 'Failed to load report data');
-      Alert.alert('Error', err.message || 'Failed to load report data');
+      showError(err.message || 'Failed to load report data');
     } finally {
       setLoading(false);
     }
@@ -110,17 +111,17 @@ export const ReportDetailScreen = ({ navigation, route }: any) => {
 
     if (filterType === 'dateRange') {
       if (!fromDate || !toDate) {
-        Alert.alert('Error', 'Please enter both from and to dates');
+        showError('Please enter both from and to dates');
         return;
       }
       if (fromDate > toDate) {
-        Alert.alert('Error', 'From date cannot be after to date');
+        showError('From date cannot be after to date');
         return;
       }
       filters = { fromDate, toDate };
     } else if (filterType === 'month') {
       if (!selectedMonth) {
-        Alert.alert('Error', 'Please enter a month (YYYY-MM)');
+        showError('Please enter a month (YYYY-MM)');
         return;
       }
       // Convert month to date range
@@ -131,7 +132,7 @@ export const ReportDetailScreen = ({ navigation, route }: any) => {
       filters = { fromDate: firstDay, toDate: lastDayStr };
     } else if (filterType === 'year') {
       if (!selectedYear) {
-        Alert.alert('Error', 'Please enter a year (YYYY)');
+        showError('Please enter a year (YYYY)');
         return;
       }
       filters = { fromDate: `${selectedYear}-01-01`, toDate: `${selectedYear}-12-31` };
@@ -203,13 +204,13 @@ export const ReportDetailScreen = ({ navigation, route }: any) => {
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
-        Alert.alert('Success', `${format.toUpperCase()} export completed successfully!`);
+        showSuccess(`${format.toUpperCase()} export completed successfully!`);
       } else {
-        Alert.alert('Export', 'File download is available on web only.');
+        showAlert('Export', 'File download is available on web only.');
       }
     } catch (error: any) {
       console.error('Export failed:', error);
-      Alert.alert('Export Failed', error.message || `Failed to export ${format.toUpperCase()}`);
+      showAlert('Export Failed', error.message || `Failed to export ${format.toUpperCase()}`);
     }
   };
 

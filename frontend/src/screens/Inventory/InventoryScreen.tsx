@@ -10,6 +10,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { itemsAPI } from '../../services/api';
 import { confirmDelete, showDeleteSuccess, showDeleteError } from '../../utils/deleteConfirm';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 export const InventoryScreen: React.FC = ({ navigation }: any) => {
   const { isMobile, isTablet, isDesktop, rs } = useResponsive();
@@ -88,7 +89,7 @@ export const InventoryScreen: React.FC = ({ navigation }: any) => {
       }
     } catch (err: any) {
       console.error('❌ Failed to fetch items:', err);
-      Alert.alert('Error', err.message || 'Failed to load items');
+      showError(err.message || 'Failed to load items');
     } finally {
       setLoading(false);
     }

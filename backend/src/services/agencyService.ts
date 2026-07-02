@@ -234,7 +234,7 @@ class AgencyService {
   async getAllAgencies(): Promise<Agency[]> {
     const masterPool = dbConnectionManager.getMasterPool();
     const [rows] = await masterPool.query(
-      'SELECT * FROM agencies ORDER BY created_date DESC'
+      'SELECT * FROM agencies ORDER BY id DESC'
     );
 
     return rows as Agency[];
@@ -415,12 +415,19 @@ class AgencyService {
     await this.ensureSettingsTable(pool);
 
     for (const [key, value] of Object.entries(settings)) {
-      // setting_value can be string or other types, but in DB it's TEXT
       const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
-      await pool.query(
-        'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value',
-        [key, valueStr]
+      // Try UPDATE first; if no row affected, INSERT
+      const [updateResult]: any = await pool.query(
+        'UPDATE settings SET setting_value = ? WHERE setting_key = ?',
+        [valueStr, key]
       );
+      const affected = updateResult?.affectedRows ?? 0;
+      if (!affected) {
+        await pool.query(
+          'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)',
+          [key, valueStr]
+        );
+      }
     }
   }
 

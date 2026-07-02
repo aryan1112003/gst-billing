@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { ReportService } from '../services/reportService';
 import { ExportService } from '../services/exportService';
+import { AuthRequest } from '../middleware/auth';
 
 export class ReportController {
   // Dashboard
@@ -292,6 +293,50 @@ export class ReportController {
       req.agencyId ?? undefined
     );
     res.json({ success: true, data: { report } });
+  });
+
+  static getTopCustomers = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { from_date, to_date, limit = 10 } = req.query;
+    const agencyId = req.agencyId ?? undefined;
+    const result = await ReportService.getSalesByCustomer(
+      from_date ? new Date(from_date as string) : undefined,
+      to_date ? new Date(to_date as string) : undefined,
+      agencyId
+    );
+    const top = (result.salesByCustomer ?? result ?? [])
+      .slice(0, Number(limit));
+    res.json({ success: true, data: { topCustomers: top } });
+  });
+
+  static getTopItems = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { from_date, to_date, limit = 10 } = req.query;
+    const agencyId = req.agencyId ?? undefined;
+    const result = await ReportService.getProductSales(
+      from_date ? new Date(from_date as string) : undefined,
+      to_date ? new Date(to_date as string) : undefined,
+      agencyId
+    );
+    const top = (result.productSales ?? result ?? [])
+      .slice(0, Number(limit));
+    res.json({ success: true, data: { topItems: top } });
+  });
+
+  static getMonthlySummary = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { from_date, to_date } = req.query;
+    const agencyId = req.agencyId ?? undefined;
+    const [sales, expenses] = await Promise.all([
+      ReportService.getSalesReport(
+        from_date ? new Date(from_date as string) : undefined,
+        to_date ? new Date(to_date as string) : undefined,
+        undefined, agencyId
+      ),
+      ReportService.getExpenseReport(
+        from_date ? new Date(from_date as string) : undefined,
+        to_date ? new Date(to_date as string) : undefined,
+        undefined, agencyId
+      ),
+    ]);
+    res.json({ success: true, data: { sales, expenses } });
   });
 
   // Export Methods

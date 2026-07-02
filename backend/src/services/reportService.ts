@@ -35,10 +35,10 @@ export class ReportService {
       let expenseResult;
       try {
         const expenseParams: any[] = [];
-        let expenseWhere = `WHERE expense_date >= DATE_TRUNC('month', CURRENT_DATE)`;
-        if (agencyId) { expenseWhere += ` AND expenses.agency_id = ?`; expenseParams.push(agencyId); }
+        let expenseWhere = `WHERE date >= DATE_TRUNC('month', CURRENT_DATE)`;
+        if (agencyId) { expenseWhere += ` AND agency_id = ?`; expenseParams.push(agencyId); }
         expenseResult = await query(`
-          SELECT COALESCE(SUM(amount::numeric), 0) as total_expenses
+          SELECT COALESCE(SUM(COALESCE(total_amount, amount)::numeric), 0) as total_expenses
           FROM expenses
           ${expenseWhere}
         `, expenseParams);
@@ -123,16 +123,16 @@ export class ReportService {
     }
 
     const salesResult = await query(`
-      SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total_sales, 
+      SELECT COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0) as total_sales, 
              COUNT(*) as total_invoices, 
-             COALESCE(AVG(CAST(total_amount AS DECIMAL(10,2))), 0) as average_invoice_value 
+             COALESCE(AVG(CAST(total_amount AS NUMERIC)), 0) as average_invoice_value 
       FROM invoices i ${whereClause}
     `, params);
 
     const topCustomersResult = await query(`
       SELECT c.id as customer_id, 
              CONCAT(c.fname, ' ', c.lname) as customer_name, 
-             COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as total_sales, 
+             COALESCE(SUM(CAST(i.total_amount AS NUMERIC)), 0) as total_sales, 
              COUNT(i.id) as invoice_count 
       FROM customers c 
       JOIN invoices i ON c.id = i.customer_id 
@@ -147,7 +147,7 @@ export class ReportService {
     if (agencyId) { byMonthWhere += ` AND i.agency_id = ?`; byMonthParams.push(agencyId); }
     const salesByMonthResult = await query(`
       SELECT TO_CHAR(i.invoice_date, 'YYYY-MM') as month,
-             COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as sales,
+             COALESCE(SUM(CAST(i.total_amount AS NUMERIC)), 0) as sales,
              COUNT(i.id) as invoices
       FROM invoices i
       ${byMonthWhere}
@@ -186,8 +186,8 @@ export class ReportService {
     const result = await query(`
       SELECT CONCAT(c.fname, ' ', c.lname) as "Customer Name",
              COUNT(i.id) as "Invoice Count",
-             COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as "Total Sales",
-             COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as "Sales with Tax"
+             COALESCE(SUM(CAST(i.total_amount AS NUMERIC)), 0) as "Total Sales",
+             COALESCE(SUM(CAST(i.total_amount AS NUMERIC)), 0) as "Sales with Tax"
       FROM customers c
       JOIN invoices i ON c.id = i.customer_id
       ${whereClause}
@@ -208,7 +208,7 @@ export class ReportService {
     const result = await query(`
       SELECT name as "Item Name", 
              SUM(total_qty) as "Quantity Sold",
-             COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as "Total Sales"
+             COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0) as "Total Sales"
       FROM item_qty_sale_view
       ${whereClause}
       GROUP BY item_id, name
@@ -231,7 +231,7 @@ export class ReportService {
     const result = await query(`
       SELECT s.name as "Salesperson",
              COUNT(i.id) as "Invoice Count",
-             COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as "Total Sales"
+             COALESCE(SUM(CAST(i.total_amount AS NUMERIC)), 0) as "Total Sales"
       FROM sale_persons s
       JOIN invoices i ON s.id = i.saleperson_id
       ${whereClause}
@@ -249,9 +249,9 @@ export class ReportService {
     if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
     // Simplified - mawebtec_lms doesn't have paid_amount in invoices
     const receivablesResult = await query(`
-      SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total_receivables,
+      SELECT COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0) as total_receivables,
              0 as overdue_amount,
-             COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as current_amount
+             COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0) as current_amount
       FROM invoices
       ${whereClause}
     `, params);
@@ -271,13 +271,13 @@ export class ReportService {
     if (agencyId) { whereClause += ` AND c.agency_id = ?`; params.push(agencyId); }
     const result = await query(`
       SELECT CONCAT(c.fname, ' ', c.lname) as name,
-             COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) as balance
+             COALESCE(SUM(CAST(i.total_amount AS NUMERIC)), 0) as balance
       FROM customers c
       LEFT JOIN invoices i ON c.id = i.customer_id AND i.is_deleted = 0 AND i.status != 'paid'
       ${whereClause}
       GROUP BY c.id, c.fname, c.lname
-      HAVING COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) > 0
-      ORDER BY COALESCE(SUM(CAST(i.total_amount AS DECIMAL(10,2))), 0) DESC
+      HAVING COALESCE(SUM(CAST(i.total_amount AS NUMERIC)), 0) > 0
+      ORDER BY COALESCE(SUM(CAST(i.total_amount AS NUMERIC)), 0) DESC
     `, params);
     return result;
   }
@@ -288,11 +288,11 @@ export class ReportService {
     if (agencyId) { whereClause += ` AND i.agency_id = ?`; params.push(agencyId); }
     const result = await query(`
       SELECT
-        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) <= 0 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as current_amount,
-        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 1 AND 30 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_1_30,
-        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 31 AND 60 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_31_60,
-        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 61 AND 90 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_61_90,
-        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) > 90 THEN CAST(i.total_amount AS DECIMAL(10,2)) ELSE 0 END) as days_over_90
+        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) <= 0 THEN CAST(i.total_amount AS NUMERIC) ELSE 0 END) as current_amount,
+        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 1 AND 30 THEN CAST(i.total_amount AS NUMERIC) ELSE 0 END) as days_1_30,
+        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 31 AND 60 THEN CAST(i.total_amount AS NUMERIC) ELSE 0 END) as days_31_60,
+        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 61 AND 90 THEN CAST(i.total_amount AS NUMERIC) ELSE 0 END) as days_61_90,
+        SUM(CASE WHEN (CURRENT_DATE - i.due_date::date) > 90 THEN CAST(i.total_amount AS NUMERIC) ELSE 0 END) as days_over_90
       FROM invoices i
       ${whereClause}
     `, params);
@@ -310,7 +310,7 @@ export class ReportService {
              i.invoice_date,
              i.due_date,
              (CURRENT_DATE - i.due_date::date) as days_overdue,
-             CAST(i.total_amount AS DECIMAL(10,2)) as amount,
+             CAST(i.total_amount AS NUMERIC) as amount,
              CASE
                WHEN (CURRENT_DATE - i.due_date::date) <= 0 THEN 'Current'
                WHEN (CURRENT_DATE - i.due_date::date) BETWEEN 1 AND 30 THEN '1-30 Days'
@@ -341,9 +341,9 @@ export class ReportService {
              i.invoice_date as issue_date, 
              i.due_date, 
              i.status, 
-             CAST(i.total_amount AS DECIMAL(10,2)) as total_amount, 
+             CAST(i.total_amount AS NUMERIC) as total_amount, 
              0 as paid_amount, 
-             CAST(i.total_amount AS DECIMAL(10,2)) as balance 
+             CAST(i.total_amount AS NUMERIC) as balance 
       FROM invoices i 
       JOIN customers c ON i.customer_id = c.id 
       ${whereClause} 
@@ -365,7 +365,7 @@ export class ReportService {
       SELECT p.payment_date, 
              CONCAT(c.fname, ' ', c.lname) as customer, 
              p.reference, 
-             CAST(p.amount AS DECIMAL(10,2)) as amount,
+             CAST(p.amount AS NUMERIC) as amount,
              p.payment_mode as payment_method
       FROM payments_received p 
       JOIN customers c ON p.customer_id = c.id 
@@ -388,9 +388,9 @@ export class ReportService {
         p.payment_date,
         CONCAT(c.fname, ' ', c.lname) as customer_name,
         p.reference,
-        CAST(p.amount AS DECIMAL(10,2)) as payment_amount,
-        CAST(p.withholding_amount AS DECIMAL(10,2)) as tds_amount,
-        CAST(p.amount_received AS DECIMAL(10,2)) as net_amount
+        CAST(p.amount AS NUMERIC) as payment_amount,
+        CAST(p.withholding_amount AS NUMERIC) as tds_amount,
+        CAST(p.amount_received AS NUMERIC) as net_amount
       FROM payments_received p
       JOIN customers c ON p.customer_id = c.id
       ${whereClause}
@@ -414,21 +414,19 @@ export class ReportService {
   static async getExpenseDetails(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
     let whereClause = `WHERE 1=1`;
-    if (fromDate) { whereClause += ` AND e.expense_date >= ?`; params.push(fromDate); }
-    if (toDate) { whereClause += ` AND e.expense_date <= ?`; params.push(toDate); }
+    if (fromDate) { whereClause += ` AND e.date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND e.date <= ?`; params.push(toDate); }
     if (agencyId) { whereClause += ` AND e.agency_id = ?`; params.push(agencyId); }
 
     const result = await query(`
-      SELECT e.expense_date as date,
-             e.expense_number,
-             e.description,
-             CAST(e.amount AS DECIMAL(10,2)) as amount,
-             CAST(e.total_amount AS DECIMAL(10,2)) as total_amount,
-             e.category,
-             e.payment_mode
+      SELECT e.date as date,
+             e.notes as description,
+             CAST(COALESCE(e.total_amount, e.amount) AS NUMERIC) as amount,
+             CAST(COALESCE(e.total_amount, e.amount) AS NUMERIC) as total_amount,
+             e.category_id as category
       FROM expenses e
       ${whereClause}
-      ORDER BY e.expense_date DESC
+      ORDER BY e.date DESC
     `, params);
 
     return result;
@@ -437,17 +435,17 @@ export class ReportService {
   static async getExpensesByCategory(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
     let whereClause = `WHERE 1=1`;
-    if (fromDate) { whereClause += ` AND e.expense_date >= ?`; params.push(fromDate); }
-    if (toDate) { whereClause += ` AND e.expense_date <= ?`; params.push(toDate); }
+    if (fromDate) { whereClause += ` AND e.date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND e.date <= ?`; params.push(toDate); }
     if (agencyId) { whereClause += ` AND e.agency_id = ?`; params.push(agencyId); }
 
     const result = await query(`
-      SELECT e.category,
+      SELECT COALESCE(e.category_id::text, 'Uncategorized') as category,
              COUNT(*) as expense_count,
-             COALESCE(SUM(CAST(e.amount AS DECIMAL(10,2))), 0) as total_amount
+             COALESCE(SUM(CAST(COALESCE(e.total_amount, e.amount) AS NUMERIC)), 0) as total_amount
       FROM expenses e
       ${whereClause}
-      GROUP BY e.category
+      GROUP BY e.category_id
       ORDER BY total_amount DESC
     `, params);
 
@@ -457,17 +455,17 @@ export class ReportService {
   static async getExpensesByCustomer(fromDate?: Date, toDate?: Date, agencyId?: number) {
     const params: any[] = [];
     let whereClause = `WHERE 1=1`;
-    if (fromDate) { whereClause += ` AND e.expense_date >= ?`; params.push(fromDate); }
-    if (toDate) { whereClause += ` AND e.expense_date <= ?`; params.push(toDate); }
+    if (fromDate) { whereClause += ` AND e.date >= ?`; params.push(fromDate); }
+    if (toDate) { whereClause += ` AND e.date <= ?`; params.push(toDate); }
 
     // Group expenses by category as proxy for "by customer" since new schema removed customer_id from expenses
     const result = await query(`
-      SELECT e.category as customer_name,
+      SELECT COALESCE(e.category_id::text, 'Uncategorized') as customer_name,
              COUNT(*) as expense_count,
-             COALESCE(SUM(CAST(e.amount AS DECIMAL(10,2))), 0) as total_amount
+             COALESCE(SUM(CAST(COALESCE(e.total_amount, e.amount) AS NUMERIC)), 0) as total_amount
       FROM expenses e
       ${whereClause}
-      GROUP BY e.category
+      GROUP BY e.category_id
       ORDER BY total_amount DESC
     `, params);
 
@@ -482,7 +480,7 @@ export class ReportService {
     const result = await query(`
       SELECT name as item_name,
              hsncode as hsn_code,
-             CAST(selling_price AS DECIMAL(10,2)) as unit_price,
+             CAST(selling_price AS NUMERIC) as unit_price,
              description
       FROM items
       ${whereClause}
@@ -498,7 +496,7 @@ export class ReportService {
     if (agencyId) { whereClause += ` AND agency_id = ?`; params.push(agencyId); }
     const result = await query(`
       SELECT COUNT(*) as total_items,
-             COALESCE(SUM(CAST(selling_price AS DECIMAL(10,2))), 0) as total_value
+             COALESCE(SUM(CAST(selling_price AS NUMERIC)), 0) as total_value
       FROM items
       ${whereClause}
     `, params);
@@ -513,7 +511,7 @@ export class ReportService {
     const result = await query(`
       SELECT name as item_name,
              hsncode as hsn_code,
-             CAST(selling_price AS DECIMAL(10,2)) as unit_price,
+             CAST(selling_price AS NUMERIC) as unit_price,
              description,
              'Available' as status
       FROM items
@@ -532,7 +530,7 @@ export class ReportService {
     const result = await query(`
       SELECT it.name as product_name,
              it.hsncode as hsn_code,
-             CAST(it.selling_price AS DECIMAL(10,2)) as unit_price,
+             CAST(it.selling_price AS NUMERIC) as unit_price,
              it.description
       FROM items it
       ${whereClause}
@@ -553,12 +551,12 @@ export class ReportService {
     if (toDate) { incWhere += ` AND invoice_date <= ?`; incomeParams.push(toDate); }
     if (agencyId) { incWhere += ` AND agency_id = ?`; incomeParams.push(agencyId); }
 
-    if (fromDate) { expWhere += ` AND expense_date >= ?`; expenseParams.push(fromDate); }
-    if (toDate) { expWhere += ` AND expense_date <= ?`; expenseParams.push(toDate); }
+    if (fromDate) { expWhere += ` AND date >= ?`; expenseParams.push(fromDate); }
+    if (toDate) { expWhere += ` AND date <= ?`; expenseParams.push(toDate); }
     if (agencyId) { expWhere += ` AND agency_id = ?`; expenseParams.push(agencyId); }
 
-    const incomeRes = await query(`SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total_income FROM invoices ${incWhere}`, incomeParams);
-    const expenseRes = await query(`SELECT COALESCE(SUM(CAST(amount AS DECIMAL(10,2))), 0) as total_expenses FROM expenses ${expWhere}`, expenseParams);
+    const incomeRes = await query(`SELECT COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0) as total_income FROM invoices ${incWhere}`, incomeParams);
+    const expenseRes = await query(`SELECT COALESCE(SUM(COALESCE(total_amount, amount)::numeric), 0) as total_expenses FROM expenses ${expWhere}`, expenseParams);
 
     const totalIncome = parseFloat(incomeRes.rows[0].total_income) || 0;
     const totalExpenses = parseFloat(expenseRes.rows[0].total_expenses) || 0;
@@ -600,8 +598,8 @@ export class ReportService {
       purchaseParams.push(agencyId);
     }
 
-    const receivablesResult = await query(`SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total FROM invoices ${whereClause} AND status != 'paid'`, invoiceParams);
-    const payablesResult = await query(`SELECT COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total FROM purchase ${purchaseWhere} AND status != 'paid'`, purchaseParams);
+    const receivablesResult = await query(`SELECT COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0) as total FROM invoices ${whereClause} AND status != 'paid'`, invoiceParams);
+    const payablesResult = await query(`SELECT COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0) as total FROM purchase ${purchaseWhere} AND status != 'paid'`, purchaseParams);
 
     // Bank balance (approximation from payments received - expenses)
     const payRecParams: any[] = [];
@@ -611,11 +609,11 @@ export class ReportService {
 
     const expRecParams: any[] = [];
     let expRecWhere = `WHERE 1=1`;
-    if (asOfDate) { expRecWhere += ` AND expense_date <= ?`; expRecParams.push(asOfDate); }
+    if (asOfDate) { expRecWhere += ` AND date <= ?`; expRecParams.push(asOfDate); }
     if (agencyId) { expRecWhere += ` AND agency_id = ?`; expRecParams.push(agencyId); }
 
-    const paymentsResult = await query(`SELECT COALESCE(SUM(CAST(amount AS DECIMAL(10,2))), 0) as total FROM payments_received ${payRecWhere}`, payRecParams);
-    const expensesResult = await query(`SELECT COALESCE(SUM(CAST(amount AS DECIMAL(10,2))), 0) as total FROM expenses ${expRecWhere}`, expRecParams);
+    const paymentsResult = await query(`SELECT COALESCE(SUM(CAST(amount AS NUMERIC)), 0) as total FROM payments_received ${payRecWhere}`, payRecParams);
+    const expensesResult = await query(`SELECT COALESCE(SUM(CAST(amount AS NUMERIC)), 0) as total FROM expenses ${expRecWhere}`, expRecParams);
 
     const totalReceivables = parseFloat(receivablesResult.rows[0].total) || 0;
     const totalPayables = parseFloat(payablesResult.rows[0].total) || 0;
@@ -677,9 +675,9 @@ export class ReportService {
 
     const result = await query(`
       SELECT
-        COALESCE(SUM(CAST(subtotal AS DECIMAL(10,2))), 0) as taxable_amount,
-        COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2)) - CAST(subtotal AS DECIMAL(10,2))), 0) as tax_amount,
-        COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total_amount
+        COALESCE(SUM(CAST(sub_total AS NUMERIC)), 0) as taxable_amount,
+        COALESCE(SUM(CAST(total_amount AS NUMERIC) - CAST(sub_total AS NUMERIC)), 0) as tax_amount,
+        COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0) as total_amount
       FROM invoices
       ${whereClause}
     `, params);
@@ -708,12 +706,12 @@ export class ReportService {
         CONCAT(c.fname, ' ', c.lname) as receiver_name,
         i.invoice_number,
         i.invoice_date,
-        CAST(i.total_amount AS DECIMAL(10,2)) as invoice_value,
+        CAST(i.total_amount AS NUMERIC) as invoice_value,
         c.place_of_supply,
         'R' as reverse_charge,
         'Regular' as invoice_type,
-        CAST(i.subtotal AS DECIMAL(10,2)) as taxable_value,
-        CAST(i.total_amount AS DECIMAL(10,2)) - CAST(i.subtotal AS DECIMAL(10,2)) as cess
+        CAST(i.sub_total AS NUMERIC) as taxable_value,
+        CAST(i.total_amount AS NUMERIC) - CAST(i.sub_total AS NUMERIC) as cess
       FROM invoices i
       JOIN customers c ON i.customer_id = c.id
       ${whereClause}
@@ -737,14 +735,14 @@ export class ReportService {
     const result = await query(`
       SELECT
         v.gstin as supplier_gstin,
-        v.name as supplier_name,
+        COALESCE(v.cdisplay_name, v.company_name, CONCAT(v.fname, ' ', v.lname)) as supplier_name,
         p.purchase_number,
         p.purchase_date,
-        CAST(p.total_amount AS DECIMAL(10,2)) as invoice_value,
-        CAST(p.subtotal AS DECIMAL(10,2)) as taxable_value,
-        CAST(p.total_amount AS DECIMAL(10,2)) - CAST(p.subtotal AS DECIMAL(10,2)) as tax_amount
+        CAST(p.total_amount AS NUMERIC) as invoice_value,
+        CAST(p.sub_total AS NUMERIC) as taxable_value,
+        CAST(p.total_amount AS NUMERIC) - CAST(p.sub_total AS NUMERIC) as tax_amount
       FROM purchase p
-      JOIN vendors v ON p.vendor_id = v.id
+      JOIN vendors v ON p.customer_id = v.id
       ${whereClause}
       ORDER BY p.purchase_date
     `, params);
@@ -773,8 +771,8 @@ export class ReportService {
     // 3.1 Outward supplies
     const outwardResult = await query(`
       SELECT
-        COALESCE(SUM(CAST(subtotal AS DECIMAL(10,2))), 0) as taxable_value,
-        COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2)) - CAST(subtotal AS DECIMAL(10,2))), 0) as gst_amount
+        COALESCE(SUM(CAST(sub_total AS NUMERIC)), 0) as taxable_value,
+        COALESCE(SUM(CAST(total_amount AS NUMERIC) - CAST(sub_total AS NUMERIC)), 0) as gst_amount
       FROM invoices
       ${whereClause}
     `, params);
@@ -782,8 +780,8 @@ export class ReportService {
     // 4. Eligible ITC (Purchases)
     const inwardResult = await query(`
       SELECT
-        COALESCE(SUM(CAST(subtotal AS DECIMAL(10,2))), 0) as taxable_value,
-        COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2)) - CAST(subtotal AS DECIMAL(10,2))), 0) as gst_amount
+        COALESCE(SUM(CAST(sub_total AS NUMERIC)), 0) as taxable_value,
+        COALESCE(SUM(CAST(total_amount AS NUMERIC) - CAST(sub_total AS NUMERIC)), 0) as gst_amount
       FROM purchase
       ${pWhere}
     `, pParams);
@@ -829,9 +827,9 @@ export class ReportService {
       SELECT
         TO_CHAR(invoice_date, 'YYYY-MM') as period,
         COUNT(*) as transaction_count,
-        COALESCE(SUM(CAST(subtotal AS DECIMAL(10,2))), 0) as taxable_amount,
-        COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2)) - CAST(subtotal AS DECIMAL(10,2))), 0) as tax_amount,
-        COALESCE(SUM(CAST(total_amount AS DECIMAL(10,2))), 0) as total_amount
+        COALESCE(SUM(CAST(sub_total AS NUMERIC)), 0) as taxable_amount,
+        COALESCE(SUM(CAST(total_amount AS NUMERIC) - CAST(sub_total AS NUMERIC)), 0) as tax_amount,
+        COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0) as total_amount
       FROM invoices
       ${whereClause}
       GROUP BY TO_CHAR(invoice_date, 'YYYY-MM')
@@ -847,15 +845,15 @@ export class ReportService {
     let whereClause = `WHERE 1=1`;
     if (agencyId) { whereClause += ` AND v.agency_id = ?`; params.push(agencyId); }
     const result = await query(`
-      SELECT v.name as vendor_name,
-             v.email,
-             v.phone,
-             COALESCE(SUM(CAST(p.total_amount AS DECIMAL(10,2))), 0) as total_purchases,
-             COALESCE(SUM(CASE WHEN p.status != 'paid' THEN CAST(p.total_amount AS DECIMAL(10,2)) ELSE 0 END), 0) as outstanding_balance
+      SELECT COALESCE(v.cdisplay_name, v.company_name, CONCAT(v.fname, ' ', v.lname)) as vendor_name,
+             v.customer_email,
+             v.cmobile_phone,
+             COALESCE(SUM(CAST(p.total_amount AS NUMERIC)), 0) as total_purchases,
+             COALESCE(SUM(CASE WHEN p.status != 'paid' THEN CAST(p.total_amount AS NUMERIC) ELSE 0 END), 0) as outstanding_balance
       FROM vendors v
-      LEFT JOIN purchase p ON v.id = p.vendor_id AND p.is_deleted = 0
+      LEFT JOIN purchase p ON v.id = p.customer_id AND p.is_deleted = 0
       ${whereClause}
-      GROUP BY v.id, v.name, v.email, v.phone
+      GROUP BY v.id, v.customer_email, v.cmobile_phone
       ORDER BY outstanding_balance DESC
     `, params);
 
@@ -869,16 +867,16 @@ export class ReportService {
     // Vendor credits - showing paid purchases
     const result = await query(`
       SELECT
-        v.name as vendor_name,
+        COALESCE(v.cdisplay_name, v.company_name, CONCAT(v.fname, ' ', v.lname)) as vendor_name,
         p.purchase_number,
         p.purchase_date,
-        CAST(p.total_amount AS DECIMAL(10,2)) as credit_amount,
+        CAST(p.total_amount AS NUMERIC) as credit_amount,
         CASE p.status
           WHEN 'paid' THEN 'Paid'
           ELSE 'Pending'
         END as status
       FROM purchase p
-      JOIN vendors v ON p.vendor_id = v.id
+      JOIN vendors v ON p.customer_id = v.id
       ${whereClause}
       ORDER BY p.purchase_date DESC
     `, params);
@@ -894,14 +892,14 @@ export class ReportService {
     if (agencyId) { whereClause += ` AND p.agency_id = ?`; params.push(agencyId); }
 
     const result = await query(`
-      SELECT v.name as vendor_name,
-             v.email,
+      SELECT COALESCE(v.cdisplay_name, v.company_name, CONCAT(v.fname, ' ', v.lname)) as vendor_name,
+             v.customer_email,
              COUNT(p.id) as purchase_count,
-             COALESCE(SUM(CAST(p.total_amount AS DECIMAL(10,2))), 0) as total_purchases,
-             COALESCE(AVG(CAST(p.total_amount AS DECIMAL(10,2))), 0) as average_purchase
+             COALESCE(SUM(CAST(p.total_amount AS NUMERIC)), 0) as total_purchases,
+             COALESCE(AVG(CAST(p.total_amount AS NUMERIC)), 0) as average_purchase
       FROM vendors v
-      LEFT JOIN purchase p ON v.id = p.vendor_id AND ${whereClause.replace('WHERE ', '')}
-      GROUP BY v.id, v.name, v.email
+      LEFT JOIN purchase p ON v.id = p.customer_id AND ${whereClause.replace('WHERE ', '')}
+      GROUP BY v.id, v.customer_email
       HAVING COUNT(p.id) > 0
       ORDER BY total_purchases DESC
     `, params);
@@ -919,9 +917,9 @@ export class ReportService {
 
     const result = await query(`
       SELECT p.purchase_date as payment_date,
-             v.name as vendor_name,
+             COALESCE(v.cdisplay_name, v.company_name, CONCAT(v.fname, ' ', v.lname)) as vendor_name,
              p.purchase_number,
-             CAST(p.total_amount AS DECIMAL(10,2)) as amount,
+             CAST(p.total_amount AS NUMERIC) as amount,
              CASE p.status
                WHEN 'draft' THEN 'Draft'
                WHEN 'pending' THEN 'Pending'
@@ -929,7 +927,7 @@ export class ReportService {
                ELSE p.status
              END as status
       FROM purchase p
-      JOIN vendors v ON p.vendor_id = v.id
+      JOIN vendors v ON p.customer_id = v.id
       ${whereClause}
       ORDER BY p.purchase_date DESC
     `, params);
@@ -937,4 +935,7 @@ export class ReportService {
     return result;
   }
 }
+
+
+
 

@@ -15,6 +15,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface Plan {
     id: number;
@@ -115,7 +116,7 @@ export const SubscriptionManagementScreen = ({ navigation }: any) => {
     };
 
     const handleUpgrade = (plan: Plan) => {
-        Alert.alert(
+        showAlert(
             `Upgrade to ${plan.display_name}`,
             `₹${plan.price_monthly.toLocaleString()}/month\n\nThis will upgrade your subscription immediately.`,
             [

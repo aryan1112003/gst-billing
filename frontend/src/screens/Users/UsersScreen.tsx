@@ -10,6 +10,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { usersAPI } from '../../services/api';
 import { confirmDelete, showDeleteSuccess, showDeleteError } from '../../utils/deleteConfirm';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface User {
   id: string;
@@ -54,12 +55,17 @@ export const UsersScreen: React.FC = ({ navigation }: any) => {
         3: 'user'
       };
 
-      const userData = (response.data || []).map((user: any) => ({
-        ...user,
-        id: String(user.id),
-        username: user.name || user.username || '-',
-        role: user.role || roleMap[user.roleId] || 'user'
-      }));
+      const userData = (response.data || []).map((user: any) => {
+        // Determine username without falling back to email
+        const rawUsername = user.name || user.username;
+        const displayUsername = rawUsername && rawUsername !== user.email ? rawUsername : '—';
+        return {
+          ...user,
+          id: String(user.id),
+          username: displayUsername,
+          role: user.role || roleMap[user.roleId] || 'user'
+        };
+      });
       setUsers(userData);
 
       if (response.pagination) {
@@ -71,7 +77,7 @@ export const UsersScreen: React.FC = ({ navigation }: any) => {
       }
     } catch (err: any) {
       console.error('Failed to fetch users:', err);
-      Alert.alert('Error', err.message || 'Failed to load users');
+      showError(err.message || 'Failed to load users');
     } finally {
       setLoading(false);
     }

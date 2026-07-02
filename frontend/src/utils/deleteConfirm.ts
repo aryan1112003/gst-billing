@@ -1,4 +1,5 @@
 import { Platform, Alert } from 'react-native';
+import { showAlert, showSuccess, showError } from '../utils/toast';
 
 // Global state for custom dialog (web only)
 let showDialogCallback: ((props: {
@@ -42,7 +43,7 @@ export const confirmDelete = (
     }
   } else {
     // Mobile - use React Native Alert
-    Alert.alert(
+    showAlert(
       `Delete ${itemType}`,
       `Are you sure you want to delete "${itemName}"?`,
       [
@@ -76,7 +77,7 @@ export const showDeleteSuccess = (itemType: string = 'Item'): void => {
       window.alert(`${itemType} deleted successfully!`);
     }
   } else {
-    Alert.alert('Success', `${itemType} deleted successfully!`);
+    showSuccess(`${itemType} deleted successfully!`);
   }
 };
 
@@ -96,6 +97,6 @@ export const showDeleteError = (error: string, itemType: string = 'item'): void 
       window.alert(`Failed to delete ${itemType}: ${error}`);
     }
   } else {
-    Alert.alert('Error', `Failed to delete ${itemType}: ${error}`);
+    showError(`Failed to delete ${itemType}: ${error}`);
   }
 };

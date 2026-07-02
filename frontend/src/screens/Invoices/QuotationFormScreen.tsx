@@ -10,6 +10,7 @@ import { EmailRecipientSection } from '../../components/Invoice/EmailRecipientSe
 import { useTheme } from '../../contexts/ThemeContext';
 import { RootState } from '../../store/store';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface LineItem {
     id: string;
@@ -116,7 +117,7 @@ export const QuotationFormScreen: React.FC = ({ navigation, route }: any) => {
 
             setLineItems(mappedLineItems);
         } catch (err: any) {
-            Alert.alert('Error', `Failed to load quotation: ${err.message}`);
+            showError(`Failed to load quotation: ${err.message}`);
             navigation.goBack();
         } finally {
             setLoading(false);
@@ -202,9 +203,9 @@ export const QuotationFormScreen: React.FC = ({ navigation, route }: any) => {
     };
 
     const handleSave = async () => {
-        if (!customerId) { Alert.alert('Error', 'Please select a customer'); return; }
-        if (!issueDate) { Alert.alert('Error', 'Please enter issue date'); return; }
-        if (lineItems.length === 0) { Alert.alert('Error', 'Please add at least one item'); return; }
+        if (!customerId) { showError('Please select a customer'); return; }
+        if (!issueDate) { showError('Please enter issue date'); return; }
+        if (lineItems.length === 0) { showError('Please add at least one item'); return; }
 
         try {
             setLoading(true);
@@ -229,14 +230,14 @@ export const QuotationFormScreen: React.FC = ({ navigation, route }: any) => {
 
             if (quotationId) {
                 await invoicesAPI.update(quotationId, quotationData);
-                Alert.alert('Success', 'Quotation updated successfully!');
+                showSuccess('Quotation updated successfully!');
             } else {
                 await invoicesAPI.create(quotationData);
-                Alert.alert('Success', 'Quotation created successfully!');
+                showSuccess('Quotation created successfully!');
             }
             navigation.navigate('Quotation', { refresh: Date.now() });
         } catch (err: any) {
-            Alert.alert('Error', err.message || 'Failed to save quotation');
+            showError(err.message || 'Failed to save quotation');
         } finally {
             setLoading(false);
         }

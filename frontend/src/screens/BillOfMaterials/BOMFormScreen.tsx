@@ -14,6 +14,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface ComponentRow {
     componentName: string;
@@ -74,7 +75,7 @@ export const BOMFormScreen: React.FC = () => {
             }
         } catch (error) {
             console.error('Failed to fetch BOM:', error);
-            Alert.alert('Error', 'Failed to load BOM details');
+            showError('Failed to load BOM details');
         } finally {
             setLoading(false);
         }
@@ -94,11 +95,11 @@ export const BOMFormScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.productName.trim()) {
-            Alert.alert('Validation Error', 'Please enter product name');
+            showAlert('Validation Error', 'Please enter product name');
             return;
         }
         if (!formData.quantity.trim()) {
-            Alert.alert('Validation Error', 'Please enter quantity');
+            showAlert('Validation Error', 'Please enter quantity');
             return;
         }
 
@@ -111,16 +112,16 @@ export const BOMFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.billOfMaterials.update(bomId.toString(), payload);
-                Alert.alert('Success', 'BOM updated successfully');
+                showSuccess('BOM updated successfully');
             } else {
                 await api.billOfMaterials.create(payload);
-                Alert.alert('Success', 'BOM created successfully');
+                showSuccess('BOM created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save BOM:', error);
-            Alert.alert('Error', error.message || 'Failed to save BOM');
+            showError(error.message || 'Failed to save BOM');
         } finally {
             setSaving(false);
         }

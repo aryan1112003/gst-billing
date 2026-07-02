@@ -9,6 +9,7 @@ import { colors } from '../../theme/colors';
 import { vendorsAPI } from '../../services/api';
 import { confirmDelete, showDeleteSuccess, showDeleteError } from '../../utils/deleteConfirm';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface Supplier {
     id: string;
@@ -78,7 +79,7 @@ export const SupplierScreen: React.FC = ({ navigation }: any) => {
             }
         } catch (err: any) {
             console.error('❌ Failed to fetch suppliers:', err);
-            Alert.alert('Error', err.message || 'Failed to load suppliers');
+            showError(err.message || 'Failed to load suppliers');
         } finally {
             setLoading(false);
         }

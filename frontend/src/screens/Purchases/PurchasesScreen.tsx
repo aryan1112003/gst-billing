@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Alert, Platform } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useResponsive } from '../../utils/responsive';
 import { Text, Chip, Searchbar } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -13,6 +14,7 @@ import { confirmDelete, showDeleteSuccess, showDeleteError } from '../../utils/d
 import { EmailPurchaseDialog } from '../../components/Purchase/EmailPurchaseDialog';
 import { useTheme } from '../../contexts/ThemeContext';
 import { RootState } from '../../store/store';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface Purchase {
   id: string;
@@ -25,7 +27,9 @@ interface Purchase {
   items: number;
 }
 
-export const PurchasesScreen: React.FC = ({ navigation }: any) => {
+export const PurchasesScreen: React.FC = ({ navigation: navProp }: any) => {
+  const navHook = useNavigation() as any;
+  const navigation = navProp || navHook;
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,32 +71,36 @@ export const PurchasesScreen: React.FC = ({ navigation }: any) => {
       console.log('Purchases API response:', response);
 
       // Map backend data to frontend format
-      const mappedPurchases = (response.data || []).map((p: any) => ({
-        id: String(p.id),
-        poNumber: p.purchase_number,
-        vendor: p.vendor_name || 'Unknown',
-        vendorEmail: p.vendor_email || p.vendor?.email || '',
-        amount: p.total_amount || 0,
-        date: p.purchase_date,
-        status: p.status === 'pending' ? 'Pending' :
-          p.status === 'received' ? 'Received' :
-            p.status === 'delivered' ? 'Received' :
-              p.status === 'partial' ? 'Partial' : 'Cancelled',
-        items: p.items_count || p.item_count || 0,
-      }));
+      const mappedPurchases = (response.data || []).map((p: any) => {
+        let itemCount = 0;
+        try { itemCount = JSON.parse(p.items_details || '[]').length; } catch {}
+        return {
+          id: String(p.id),
+          poNumber: p.invoice_number || p.order_number || ('PO-' + String(p.id).padStart(4, '0')),
+          vendor: p.vendor_name || p.vendor?.name || 'Unknown',
+          vendorEmail: p.vendor_email || p.vendor?.email || '',
+          amount: p.total_amount || 0,
+          date: p.invoice_date || p.po_date || p.created_date,
+          status: p.status === 'pending' ? 'Pending' :
+            p.status === 'received' ? 'Received' :
+              p.status === 'delivered' ? 'Received' :
+                p.status === 'partial' ? 'Partial' : 'Cancelled',
+          items: itemCount,
+        };
+      });
 
       setPurchases(mappedPurchases);
 
       if (response.pagination) {
         setPagination(prev => ({
           ...prev,
-          totalPages: response.pagination.totalPages || 1,
+          totalPages: response.pagination.pages || response.pagination.totalPages || 1,
           totalEntries: response.pagination.total || 0,
         }));
       }
     } catch (err: any) {
       console.error('Failed to fetch purchases:', err);
-      Alert.alert('Error', err.message || 'Failed to load purchases');
+      showError(err.message || 'Failed to load purchases');
       setPurchases([]); // Set empty array on error
     } finally {
       setLoading(false);
@@ -233,7 +241,7 @@ export const PurchasesScreen: React.FC = ({ navigation }: any) => {
         console.log('✅ Navigation to PurchaseForm initiated');
       } catch (error) {
         console.error('❌ Navigation error:', error);
-        Alert.alert('Error', 'Failed to open purchase form');
+        showError('Failed to open purchase form');
       }
     } else if (action === 'delete') {
       confirmDelete(`purchase order ${purchase.poNumber}`, async () => {
@@ -277,13 +285,13 @@ export const PurchasesScreen: React.FC = ({ navigation }: any) => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
 
-        Alert.alert('Success', `Purchase Order ${purchase.poNumber} downloaded successfully!`);
+        showSuccess(`Purchase Order ${purchase.poNumber} downloaded successfully!`);
       } else {
-        Alert.alert('Success', 'PDF download started');
+        showSuccess('PDF download started');
       }
     } catch (err: any) {
       console.error('❌ PDF download error:', err);
-      Alert.alert(
+      showAlert(
         'Download Failed',
         err.message || 'Failed to download PDF. Please try again.'
       );
@@ -305,7 +313,7 @@ export const PurchasesScreen: React.FC = ({ navigation }: any) => {
       await purchasesAPI.emailPurchase(selectedPurchase.id, data);
 
       console.log('✅ Email sent successfully');
-      Alert.alert(
+      showAlert(
         'Email Sent!',
         `Purchase Order ${selectedPurchase.poNumber} has been sent to ${data.to.join(', ')}`
       );
@@ -322,7 +330,7 @@ export const PurchasesScreen: React.FC = ({ navigation }: any) => {
         errorMessage += err.message || 'Please try again.';
       }
 
-      Alert.alert('Email Failed', errorMessage);
+      showAlert('Email Failed', errorMessage);
     } finally {
       setEmailLoading(false);
     }

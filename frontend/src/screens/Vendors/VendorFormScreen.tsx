@@ -8,6 +8,7 @@ import { PhoneInput } from '../../components/Common/PhoneInput';
 import { colors } from '../../theme/colors';
 import { vendorsAPI } from '../../services/api';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 export const VendorFormScreen: React.FC = ({ route, navigation }: any) => {
   const { vendorId, isSupplier } = route.params || {};
@@ -57,7 +58,7 @@ export const VendorFormScreen: React.FC = ({ route, navigation }: any) => {
       });
     } catch (error: any) {
       console.error('Failed to fetch vendor:', error);
-      Alert.alert('Error', 'Failed to load vendor data');
+      showError('Failed to load vendor data');
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -70,15 +71,15 @@ export const VendorFormScreen: React.FC = ({ route, navigation }: any) => {
 
   const handleSave = async () => {
     if (!formData.name) {
-      Alert.alert('Validation Error', 'Vendor name is required');
+      showAlert('Validation Error', 'Vendor name is required');
       return;
     }
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      Alert.alert('Validation Error', 'Invalid email format');
+      showAlert('Validation Error', 'Invalid email format');
       return;
     }
     if (formData.phone && !phoneValid) {
-      Alert.alert('Validation Error', 'Invalid phone number for the selected country');
+      showAlert('Validation Error', 'Invalid phone number for the selected country');
       return;
     }
 
@@ -86,15 +87,15 @@ export const VendorFormScreen: React.FC = ({ route, navigation }: any) => {
     try {
       if (isEditing) {
         await vendorsAPI.update(vendorId, formData);
-        Alert.alert('Success', 'Vendor updated successfully!');
+        showSuccess('Vendor updated successfully!');
       } else {
         await vendorsAPI.create(formData);
-        Alert.alert('Success', 'Vendor created successfully!');
+        showSuccess('Vendor created successfully!');
       }
       navigation.goBack();
     } catch (error: any) {
       console.error('Failed to save vendor:', error);
-      Alert.alert('Error', error.message || 'Failed to save vendor');
+      showError(error.message || 'Failed to save vendor');
     } finally {
       setLoading(false);
     }

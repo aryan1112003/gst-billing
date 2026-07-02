@@ -25,7 +25,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   params = filtered.params;
 
   if (search) {
-    whereClause += ` AND (p.reference ILIKE ? OR CONCAT(c.fname, ' ', c.lname) ILIKE ?)`;
+    whereClause += ` AND (p.reference ILIKE ? OR COALESCE(NULLIF(TRIM(c.cdisplay_name),''), NULLIF(TRIM(c.company_name),''), TRIM(CONCAT(c.fname, ' ', c.lname))) ILIKE ?)`;
     params.push(`%${search}%`, `%${search}%`);
   }
 
@@ -63,7 +63,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
     `SELECT p.id, p.customer_id, p.amount, p.payment_date, p.payment_mode, 
             p.reference as reference_number, p.amount_received, p.bank_charges,
             p.created_date as created_date,
-            CONCAT(c.fname, ' ', c.lname) as customer_name, 
+            COALESCE(NULLIF(TRIM(c.cdisplay_name),''), NULLIF(TRIM(c.company_name),''), TRIM(CONCAT(c.fname, ' ', c.lname))) as customer_name,
             c.customer_email as customer_email
      FROM payments_received p
      JOIN customers c ON p.customer_id = c.id
@@ -145,7 +145,7 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
             p.reference as reference_number, p.amount_received, p.bank_charges,
             p.amount_used_in_payment, p.amount_excess,
             p.created_date as created_date,
-            CONCAT(c.fname, ' ', c.lname) as customer_name, 
+            COALESCE(NULLIF(TRIM(c.cdisplay_name),''), NULLIF(TRIM(c.company_name),''), TRIM(CONCAT(c.fname, ' ', c.lname))) as customer_name,
             c.customer_email as customer_email
      FROM payments_received p
      JOIN customers c ON p.customer_id = c.id
@@ -193,6 +193,15 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
     throw createError('Customer, amount, payment date, and payment method are required', 400);
   }
 
+  // payment_mode in deployed DB is INTEGER (1=cash, 2=bank/neft/online, 3=cheque, 4=upi, 5=card)
+  const PAYMENT_MODE_MAP: Record<string, number> = {
+    cash: 1, bank: 2, neft: 2, online: 2, transfer: 2,
+    cheque: 3, check: 3,
+    upi: 4,
+    card: 5, credit_card: 5, debit_card: 5,
+  };
+  const paymentModeInt = PAYMENT_MODE_MAP[String(payment_method).toLowerCase()] ?? 1;
+
   // Get user's agency_id
   const agencyId = req.agencyId ?? req.user?.agencyId ?? null;
 
@@ -225,10 +234,10 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
         payment, payment_mode, tax_deducted, withholding_amount,
         amount_received, amount_used_in_payment, amount_refund, amount_excess,
         agency_id, created_by, created_date, updated_by, updated_date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, false, '0', ?, ?, '0', ?, ?, ?, NOW(), ?, NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, '0', ?, ?, '0', ?, ?, ?, NOW(), ?, NOW())`,
       [
         customer_id, amount, bank_charges, reference_number || '',
-        payment_date, amount, payment_method,
+        payment_date, amount, paymentModeInt,
         amountReceived, amountUsed, amountExcess,
         agencyId, userId, userId
       ]
@@ -258,7 +267,7 @@ router.post('/', authorize(['admin', 'agency']), asyncHandler(async (req: AuthRe
   });
 
   const paymentResult = await query(
-    `SELECT p.*, CONCAT(c.fname, ' ', c.lname) as customer_name
+    `SELECT p.*, COALESCE(NULLIF(TRIM(c.cdisplay_name),''), NULLIF(TRIM(c.company_name),''), TRIM(CONCAT(c.fname, ' ', c.lname))) as customer_name
      FROM payments_received p
      JOIN customers c ON p.customer_id = c.id
      WHERE p.id = ?`,
@@ -336,8 +345,15 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
   }
 
   if (payment_method !== undefined) {
+    const PAYMENT_MODE_MAP: Record<string, number> = {
+      cash: 1, bank: 2, neft: 2, online: 2, transfer: 2,
+      cheque: 3, check: 3, upi: 4, card: 5, credit_card: 5, debit_card: 5,
+    };
+    const modeInt = typeof payment_method === 'number'
+      ? payment_method
+      : (PAYMENT_MODE_MAP[String(payment_method).toLowerCase()] ?? 1);
     updateFields.push('payment_mode = ?');
-    updateParams.push(payment_method);
+    updateParams.push(modeInt);
   }
 
   if (reference_number !== undefined) {
@@ -362,9 +378,9 @@ router.put('/:id', authorize(['admin', 'agency']), asyncHandler(async (req: Auth
   }
 
   const paymentResult = await query(
-    `SELECT p.*, CONCAT(c.fname, ' ', c.lname) as customer_name 
-     FROM payments_received p 
-     JOIN customers c ON p.customer_id = c.id 
+    `SELECT p.*, COALESCE(NULLIF(TRIM(c.cdisplay_name),''), NULLIF(TRIM(c.company_name),''), TRIM(CONCAT(c.fname, ' ', c.lname))) as customer_name
+     FROM payments_received p
+     JOIN customers c ON p.customer_id = c.id
      WHERE p.id = ?`,
     [id]
   );
@@ -418,7 +434,7 @@ router.post('/:id/email', authorize(['admin', 'agency']), asyncHandler(async (re
   const result = await query(
     `SELECT p.id, p.customer_id, p.amount, p.payment_date, p.payment_mode, 
             p.reference as reference_number, p.amount_received,
-            CONCAT(c.fname, ' ', c.lname) as customer_name, 
+            COALESCE(NULLIF(TRIM(c.cdisplay_name),''), NULLIF(TRIM(c.company_name),''), TRIM(CONCAT(c.fname, ' ', c.lname))) as customer_name,
             c.customer_email as customer_email
      FROM payments_received p
      JOIN customers c ON p.customer_id = c.id

@@ -10,6 +10,7 @@ import { colors } from '../../theme/colors';
 import { paymentsAPI } from '../../services/api';
 import { confirmDelete, showDeleteSuccess, showDeleteError } from '../../utils/deleteConfirm';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface Payment {
   id: string;
@@ -78,7 +79,7 @@ export const PaymentsScreen: React.FC = ({ navigation }: any) => {
       }
     } catch (err: any) {
       console.error('Failed to fetch payments:', err);
-      Alert.alert('Error', err.message || 'Failed to load payments');
+      showError(err.message || 'Failed to load payments');
     } finally {
       setLoading(false);
     }

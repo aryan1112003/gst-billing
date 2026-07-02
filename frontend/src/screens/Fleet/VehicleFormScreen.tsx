@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface VehicleFormData {
     vehicleNumber: string;
@@ -78,7 +79,7 @@ export const VehicleFormScreen: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to fetch vehicle:', error);
-            Alert.alert('Error', 'Failed to load vehicle details');
+            showError('Failed to load vehicle details');
         } finally {
             setLoading(false);
         }
@@ -86,19 +87,19 @@ export const VehicleFormScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.vehicleNumber.trim()) {
-            Alert.alert('Validation Error', 'Please enter vehicle number');
+            showAlert('Validation Error', 'Please enter vehicle number');
             return;
         }
         if (!formData.vehicleType.trim()) {
-            Alert.alert('Validation Error', 'Please enter vehicle type');
+            showAlert('Validation Error', 'Please enter vehicle type');
             return;
         }
         if (!formData.make.trim()) {
-            Alert.alert('Validation Error', 'Please enter make');
+            showAlert('Validation Error', 'Please enter make');
             return;
         }
         if (!formData.model.trim()) {
-            Alert.alert('Validation Error', 'Please enter model');
+            showAlert('Validation Error', 'Please enter model');
             return;
         }
 
@@ -111,16 +112,16 @@ export const VehicleFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.fleet.update(vehicleId.toString(), payload);
-                Alert.alert('Success', 'Vehicle updated successfully');
+                showSuccess('Vehicle updated successfully');
             } else {
                 await api.fleet.create(payload);
-                Alert.alert('Success', 'Vehicle created successfully');
+                showSuccess('Vehicle created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save vehicle:', error);
-            Alert.alert('Error', error.message || 'Failed to save vehicle');
+            showError(error.message || 'Failed to save vehicle');
         } finally {
             setSaving(false);
         }

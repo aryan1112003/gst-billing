@@ -166,7 +166,7 @@ router.post('/', authenticate, requireRole(['admin', 'agency']), checkEmployeeLi
             roleId || 3,
             finalAgencyId ?? null,
             finalAgencyId ?? null,
-            is_active !== undefined ? (is_active ? true : false) : true,
+            is_active !== undefined ? (is_active ? 1 : 0) : 1,
             req.user!.id
         ]
     );
@@ -262,7 +262,7 @@ router.put('/:id', authenticate, requireRole(['admin', 'agency']), asyncHandler(
 
     if (is_active !== undefined) {
         updates.push('is_active = ?');
-        updateParams.push(is_active ? true : false);
+        updateParams.push(is_active ? 1 : 0);
     }
 
     if (updates.length === 0) {

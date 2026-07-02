@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface FormData {
     projectName: string;
@@ -69,7 +70,7 @@ export const ProjectFormScreen: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to fetch project:', error);
-            Alert.alert('Error', 'Failed to load project details');
+            showError('Failed to load project details');
         } finally {
             setLoading(false);
         }
@@ -77,15 +78,15 @@ export const ProjectFormScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.projectName.trim()) {
-            Alert.alert('Validation Error', 'Please enter project name');
+            showAlert('Validation Error', 'Please enter project name');
             return;
         }
         if (!formData.customerName.trim()) {
-            Alert.alert('Validation Error', 'Please enter customer name');
+            showAlert('Validation Error', 'Please enter customer name');
             return;
         }
         if (!formData.startDate.trim()) {
-            Alert.alert('Validation Error', 'Please enter start date');
+            showAlert('Validation Error', 'Please enter start date');
             return;
         }
 
@@ -95,16 +96,16 @@ export const ProjectFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.projects.update(projectId.toString(), payload);
-                Alert.alert('Success', 'Project updated successfully');
+                showSuccess('Project updated successfully');
             } else {
                 await api.projects.create(payload);
-                Alert.alert('Success', 'Project created successfully');
+                showSuccess('Project created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save project:', error);
-            Alert.alert('Error', error.message || 'Failed to save project');
+            showError(error.message || 'Failed to save project');
         } finally {
             setSaving(false);
         }

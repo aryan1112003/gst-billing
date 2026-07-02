@@ -7,6 +7,7 @@ import { colors } from '../../theme/colors';
 import { customersAPI } from '../../services/api';
 import { useResponsive } from '../../utils/responsive';
 import { PhoneInput } from '../../components/Common/PhoneInput';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 export const CustomerFormScreen: React.FC = ({ navigation, route }: any) => {
   const customerId = route?.params?.customerId;
@@ -49,7 +50,7 @@ export const CustomerFormScreen: React.FC = ({ navigation, route }: any) => {
       console.log('Form data set successfully');
     } catch (err: any) {
       console.error('Failed to fetch customer:', err);
-      Alert.alert('Error', err.message || 'Failed to load customer');
+      showError(err.message || 'Failed to load customer');
     } finally {
       setLoading(false);
     }
@@ -89,7 +90,7 @@ export const CustomerFormScreen: React.FC = ({ navigation, route }: any) => {
     } catch (err: any) {
       console.error('Failed to save customer:', err);
       setLoading(false);
-      Alert.alert('Error', err.message || 'Failed to save customer');
+      showError(err.message || 'Failed to save customer');
     }
   };
 

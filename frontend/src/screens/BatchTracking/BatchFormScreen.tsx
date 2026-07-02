@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface BatchFormData {
     batchNumber: string;
@@ -72,7 +73,7 @@ export const BatchFormScreen: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to fetch batch:', error);
-            Alert.alert('Error', 'Failed to load batch details');
+            showError('Failed to load batch details');
         } finally {
             setLoading(false);
         }
@@ -80,19 +81,19 @@ export const BatchFormScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.batchNumber.trim()) {
-            Alert.alert('Validation Error', 'Please enter batch number');
+            showAlert('Validation Error', 'Please enter batch number');
             return;
         }
         if (!formData.itemName.trim()) {
-            Alert.alert('Validation Error', 'Please enter item name');
+            showAlert('Validation Error', 'Please enter item name');
             return;
         }
         if (!formData.expiryDate.trim()) {
-            Alert.alert('Validation Error', 'Please enter expiry date');
+            showAlert('Validation Error', 'Please enter expiry date');
             return;
         }
         if (!formData.quantity.trim()) {
-            Alert.alert('Validation Error', 'Please enter quantity');
+            showAlert('Validation Error', 'Please enter quantity');
             return;
         }
 
@@ -106,16 +107,16 @@ export const BatchFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.batchTracking.update(batchId.toString(), payload);
-                Alert.alert('Success', 'Batch updated successfully');
+                showSuccess('Batch updated successfully');
             } else {
                 await api.batchTracking.create(payload);
-                Alert.alert('Success', 'Batch created successfully');
+                showSuccess('Batch created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save batch:', error);
-            Alert.alert('Error', error.message || 'Failed to save batch');
+            showError(error.message || 'Failed to save batch');
         } finally {
             setSaving(false);
         }

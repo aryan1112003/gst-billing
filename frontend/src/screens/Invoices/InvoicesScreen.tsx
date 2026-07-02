@@ -14,6 +14,7 @@ import { confirmDelete, showDeleteSuccess, showDeleteError } from '../../utils/d
 import { EmailInvoiceDialog } from '../../components/Invoice/EmailInvoiceDialog';
 // import { InvoiceStats } from '../../components/Invoice/InvoiceStats';
 import { RootState } from '../../store/store';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface Invoice {
   id: string;
@@ -259,13 +260,13 @@ export const InvoicesScreen: React.FC = ({ navigation }: any) => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
 
-        Alert.alert('Success', `Invoice ${invoice.number} downloaded successfully!`);
+        showSuccess(`Invoice ${invoice.number} downloaded successfully!`);
       } else {
-        Alert.alert('Success', 'PDF download started');
+        showSuccess('PDF download started');
       }
     } catch (err: any) {
       console.error('❌ PDF download error:', err);
-      Alert.alert(
+      showAlert(
         'Download Failed',
         err.message || 'Failed to download PDF. Please try again.'
       );
@@ -287,7 +288,7 @@ export const InvoicesScreen: React.FC = ({ navigation }: any) => {
       await invoicesAPI.emailInvoice(selectedInvoice.id, data);
 
       console.log('✅ Email sent successfully');
-      Alert.alert(
+      showAlert(
         'Email Sent!',
         `Invoice ${selectedInvoice.number} has been sent to ${data.to.join(', ')}`
       );
@@ -304,7 +305,7 @@ export const InvoicesScreen: React.FC = ({ navigation }: any) => {
         errorMessage += err.message || 'Please try again.';
       }
 
-      Alert.alert('Email Failed', errorMessage);
+      showAlert('Email Failed', errorMessage);
     } finally {
       setEmailLoading(false);
     }

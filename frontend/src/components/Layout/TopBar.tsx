@@ -36,7 +36,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   const agency = useSelector((state: RootState) => state.agency.agency);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [menuVisible, setMenuVisible] = React.useState(false);
-  const { isDesktop } = useResponsive();
+  const { isDesktop, isTablet, isMobile, rs } = useResponsive();
 
   const displayName = user?.name || 'Admin';
   const logoUri = agency?.logoUrl
@@ -61,7 +61,9 @@ export const TopBar: React.FC<TopBarProps> = ({
         styles.container,
         {
           backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.9)',
-          borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'
+          borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+          paddingHorizontal: rs(16, 16, 24),
+          height: isMobile ? 56 : 70,
         }
       ]}
     >
@@ -104,6 +106,15 @@ export const TopBar: React.FC<TopBarProps> = ({
               />
             </View>
           </View>
+        )}
+        {/* Compact search icon on tablet */}
+        {showSearch && isTablet && (
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="search" size={20} color={themeColors.text.primary} />
+          </TouchableOpacity>
         )}
 
         <View style={styles.userSection}>
@@ -199,8 +210,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    height: 70,
     borderBottomWidth: 1,
     zIndex: 10,
   },
@@ -228,7 +237,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     letterSpacing: -0.5,
   },

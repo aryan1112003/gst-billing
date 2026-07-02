@@ -9,6 +9,7 @@ import { colors } from '../../theme/colors';
 import { RootState } from '../../store/store';
 import { api } from '../../services/api';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface Agency {
   id: number;
@@ -59,7 +60,7 @@ export const AgencyManagementScreen: React.FC<AgencyManagementScreenProps> = ({ 
       }
     } catch (error) {
       console.error('Error loading agencies:', error);
-      Alert.alert('Error', 'Failed to load agencies');
+      showError('Failed to load agencies');
     } finally {
       setLoading(false);
     }
@@ -67,7 +68,7 @@ export const AgencyManagementScreen: React.FC<AgencyManagementScreenProps> = ({ 
 
   const handleCreateAgency = async () => {
     if (!newAgency.companyName || !newAgency.email || !newAgency.password) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      showError('Please fill in all required fields');
       return;
     }
 
@@ -75,7 +76,7 @@ export const AgencyManagementScreen: React.FC<AgencyManagementScreenProps> = ({ 
     try {
       const response = await api.post('/agencies', newAgency);
       if (response.data.success) {
-        Alert.alert('Success', 'Agency created successfully with dedicated database!');
+        showSuccess('Agency created successfully with dedicated database!');
         setShowCreateForm(false);
         setNewAgency({
           companyName: '',
@@ -90,7 +91,7 @@ export const AgencyManagementScreen: React.FC<AgencyManagementScreenProps> = ({ 
       }
     } catch (error: any) {
       console.error('Error creating agency:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Failed to create agency');
+      showError(error.response?.data?.message || 'Failed to create agency');
     } finally {
       setCreating(false);
     }
@@ -100,11 +101,11 @@ export const AgencyManagementScreen: React.FC<AgencyManagementScreenProps> = ({ 
     try {
       const response = await api.patch(`/agencies/${agencyId}/status`, { status: newStatus });
       if (response.data.success) {
-        Alert.alert('Success', `Agency status updated to ${newStatus}`);
+        showSuccess(`Agency status updated to ${newStatus}`);
         loadAgencies();
       }
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to update status');
+      showError(error.response?.data?.message || 'Failed to update status');
     }
   };
 

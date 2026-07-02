@@ -6,6 +6,7 @@ import { MainLayout } from '../../components/Layout/MainLayout';
 import { colors } from '../../theme/colors';
 import { purchasesAPI, vendorsAPI, itemsAPI } from '../../services/api';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface LineItem {
   id: string;
@@ -126,7 +127,7 @@ export const PurchaseFormScreen: React.FC = ({ navigation, route }: any) => {
       console.log('Mapped line items:', mappedLineItems);
     } catch (err: any) {
       console.error('Error fetching purchase:', err);
-      Alert.alert('Error', `Failed to load purchase order: ${err.message}`);
+      showError(`Failed to load purchase order: ${err.message}`);
       // Don't leave the screen blank - navigate back
       navigation.goBack();
     } finally {
@@ -206,23 +207,23 @@ export const PurchaseFormScreen: React.FC = ({ navigation, route }: any) => {
   const handleSave = async () => {
     // Validation
     if (!vendorId) {
-      Alert.alert('Error', 'Please select a vendor');
+      showError('Please select a vendor');
       return;
     }
     if (lineItems.length === 0) {
-      Alert.alert('Error', 'Please add at least one item');
+      showError('Please add at least one item');
       return;
     }
     if (lineItems.some(item => !item.itemId || item.quantity <= 0)) {
-      Alert.alert('Error', 'Please fill all item details');
+      showError('Please fill all item details');
       return;
     }
     if (!purchaseInvoiceNumber) {
-      Alert.alert('Error', 'Purchase Invoice Number is required');
+      showError('Purchase Invoice Number is required');
       return;
     }
     if (!purchaseDate) {
-      Alert.alert('Error', 'Purchase Invoice Date is required');
+      showError('Purchase Invoice Date is required');
       return;
     }
 
@@ -263,15 +264,15 @@ export const PurchaseFormScreen: React.FC = ({ navigation, route }: any) => {
 
       if (purchaseId) {
         await purchasesAPI.update(purchaseId, purchaseData);
-        Alert.alert('Success', 'Purchase order updated successfully!');
+        showSuccess('Purchase order updated successfully!');
       } else {
         await purchasesAPI.create(purchaseData);
-        Alert.alert('Success', 'Purchase order created successfully!');
+        showSuccess('Purchase order created successfully!');
       }
       // Navigate back and trigger refresh
       navigation.navigate('Purchases', { refresh: Date.now() });
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save purchase order');
+      showError(err.message || 'Failed to save purchase order');
     } finally {
       setLoading(false);
     }

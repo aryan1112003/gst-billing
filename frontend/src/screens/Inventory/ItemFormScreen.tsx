@@ -7,6 +7,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
 import { FormErrors } from '../../types';
 import { itemsAPI } from '../../services/api';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 export const ItemFormScreen: React.FC = ({ route, navigation }: any) => {
   const { isMobile, isTablet, isDesktop, rs } = useResponsive();
@@ -52,7 +53,7 @@ export const ItemFormScreen: React.FC = ({ route, navigation }: any) => {
       });
     } catch (error: any) {
       console.error('Failed to fetch item:', error);
-      Alert.alert('Error', 'Failed to load item data');
+      showError('Failed to load item data');
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -72,7 +73,7 @@ export const ItemFormScreen: React.FC = ({ route, navigation }: any) => {
   const handleSave = async () => {
     // Validation
     if (!formData.sku || !formData.name) {
-      Alert.alert('Validation Error', 'SKU and Name are required');
+      showAlert('Validation Error', 'SKU and Name are required');
       return;
     }
 
@@ -92,17 +93,17 @@ export const ItemFormScreen: React.FC = ({ route, navigation }: any) => {
 
       if (isEditing) {
         await itemsAPI.update(itemId, submitData);
-        Alert.alert('Success', 'Item updated successfully!');
+        showSuccess('Item updated successfully!');
       } else {
         await itemsAPI.create(submitData);
-        Alert.alert('Success', 'Item created successfully!');
+        showSuccess('Item created successfully!');
       }
 
       navigation.goBack();
 
     } catch (error: any) {
       console.error('Failed to save item:', error);
-      Alert.alert('Error', error.message || 'Failed to save item');
+      showError(error.message || 'Failed to save item');
     } finally {
       setLoading(false);
     }

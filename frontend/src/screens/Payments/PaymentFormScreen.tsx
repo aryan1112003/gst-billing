@@ -7,6 +7,7 @@ import { MainLayout } from '../../components/Layout/MainLayout';
 import { SearchableDropdown } from '../../components/Common/SearchableDropdown';
 import { colors } from '../../theme/colors';
 import { paymentsAPI, customersAPI, invoicesAPI } from '../../services/api';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface UnpaidInvoice {
   id: string;
@@ -100,7 +101,7 @@ export const PaymentFormScreen: React.FC = ({ route, navigation }: any) => {
       setReferenceNumber(payment.reference || payment.reference_number || '');
       setNotes(payment.notes || '');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to load payment details');
+      showError(err.message || 'Failed to load payment details');
     } finally {
       setLoading(false);
     }
@@ -124,11 +125,11 @@ export const PaymentFormScreen: React.FC = ({ route, navigation }: any) => {
 
   const handleSave = async () => {
     if (!selectedCustomer) {
-      Alert.alert('Error', 'Please select a customer');
+      showError('Please select a customer');
       return;
     }
     if (!amount && Object.keys(selectedInvoices).length === 0) {
-      Alert.alert('Error', 'Please enter an amount or select invoices to pay');
+      showError('Please enter an amount or select invoices to pay');
       return;
     }
 
@@ -152,14 +153,14 @@ export const PaymentFormScreen: React.FC = ({ route, navigation }: any) => {
 
       if (isEditing) {
         await paymentsAPI.update(paymentId, paymentData);
-        Alert.alert('Success', 'Payment updated successfully');
+        showSuccess('Payment updated successfully');
       } else {
         await paymentsAPI.create(paymentData);
-        Alert.alert('Success', 'Payment recorded successfully');
+        showSuccess('Payment recorded successfully');
       }
       navigation.goBack();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save payment');
+      showError(err.message || 'Failed to save payment');
     } finally {
       setLoading(false);
     }

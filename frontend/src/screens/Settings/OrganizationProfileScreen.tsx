@@ -12,6 +12,7 @@ import { updateAgencyLogo } from '../../store/slices/agencySlice';
 import { useTheme } from '../../contexts/ThemeContext';
 import { colors as baseColors } from '../../theme/colors';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 const BUSINESS_TYPES = [
   'Manufacturer',
@@ -126,7 +127,7 @@ export const OrganizationProfileScreen: React.FC<OrganizationProfileScreenProps>
       }
     } catch (error) {
       console.error('Error loading agency data:', error);
-      Alert.alert('Error', 'Failed to load organization data');
+      showError('Failed to load organization data');
     } finally {
       setLoading(false);
     }
@@ -141,11 +142,11 @@ export const OrganizationProfileScreen: React.FC<OrganizationProfileScreenProps>
         const updatedAgency = response.data.data.agency;
         const { setAgency } = await import('../../store/slices/agencySlice');
         dispatch(setAgency(updatedAgency));
-        Alert.alert('Success', 'Organization profile updated successfully');
+        showSuccess('Organization profile updated successfully');
       }
     } catch (error: any) {
       console.error('Error saving agency data:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Failed to update organization profile');
+      showError(error.response?.data?.message || 'Failed to update organization profile');
     } finally {
       setSaving(false);
     }
@@ -172,13 +173,13 @@ export const OrganizationProfileScreen: React.FC<OrganizationProfileScreenProps>
 
         // Check file size (10MB max matches backend)
         if (file.size > 10 * 1024 * 1024) {
-          Alert.alert('Error', 'File size must be less than 10MB');
+          showError('File size must be less than 10MB');
           return;
         }
 
         // Check file type
         if (!file.type.startsWith('image/')) {
-          Alert.alert('Error', 'Please select an image file');
+          showError('Please select an image file');
           return;
         }
 
@@ -187,7 +188,7 @@ export const OrganizationProfileScreen: React.FC<OrganizationProfileScreenProps>
           await uploadLogo(file);
         } catch (error) {
           console.error('Error uploading logo:', error);
-          Alert.alert('Error', 'Failed to upload logo');
+          showError('Failed to upload logo');
         } finally {
           setSaving(false);
         }
@@ -196,7 +197,7 @@ export const OrganizationProfileScreen: React.FC<OrganizationProfileScreenProps>
       input.click();
     } catch (err) {
       console.error('Error creating file input:', err);
-      Alert.alert('Error', 'Failed to open file picker');
+      showError('Failed to open file picker');
     }
   };
 
@@ -232,7 +233,7 @@ export const OrganizationProfileScreen: React.FC<OrganizationProfileScreenProps>
         // Update Redux store so sidebar updates immediately
         dispatch(updateAgencyLogo(data.data.logoUrl));
 
-        Alert.alert('Success', 'Logo uploaded successfully!');
+        showSuccess('Logo uploaded successfully!');
 
         // Reload agency data to get updated logo
         await loadAgencyData();
@@ -241,7 +242,7 @@ export const OrganizationProfileScreen: React.FC<OrganizationProfileScreenProps>
       }
     } catch (error: any) {
       console.error('Error uploading logo:', error);
-      Alert.alert('Error', error.message || 'Failed to upload logo');
+      showError(error.message || 'Failed to upload logo');
     }
   };
 
@@ -306,10 +307,10 @@ export const OrganizationProfileScreen: React.FC<OrganizationProfileScreenProps>
                   await api.put(`/agencies/${effectiveAgencyId}`, { ...formData, logoUrl: '' });
                   setFormData({ ...formData, logoUrl: '' });
                   dispatch(updateAgencyLogo(''));
-                  Alert.alert('Success', 'Logo removed successfully');
+                  showSuccess('Logo removed successfully');
                 } catch (error) {
                   console.error('Error removing logo:', error);
-                  Alert.alert('Error', 'Failed to remove logo permanently');
+                  showError('Failed to remove logo permanently');
                 } finally {
                   setSaving(false);
                 }

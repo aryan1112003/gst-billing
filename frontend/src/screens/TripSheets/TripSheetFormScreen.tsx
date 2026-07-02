@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface TripSheetFormData {
     vehicleNumber: string;
@@ -78,7 +79,7 @@ export const TripSheetFormScreen: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to fetch trip sheet:', error);
-            Alert.alert('Error', 'Failed to load trip sheet details');
+            showError('Failed to load trip sheet details');
         } finally {
             setLoading(false);
         }
@@ -86,27 +87,27 @@ export const TripSheetFormScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.vehicleNumber.trim()) {
-            Alert.alert('Validation Error', 'Please enter vehicle number');
+            showAlert('Validation Error', 'Please enter vehicle number');
             return;
         }
         if (!formData.driverName.trim()) {
-            Alert.alert('Validation Error', 'Please enter driver name');
+            showAlert('Validation Error', 'Please enter driver name');
             return;
         }
         if (!formData.driverPhone.trim()) {
-            Alert.alert('Validation Error', 'Please enter driver phone');
+            showAlert('Validation Error', 'Please enter driver phone');
             return;
         }
         if (!formData.fromLocation.trim()) {
-            Alert.alert('Validation Error', 'Please enter from location');
+            showAlert('Validation Error', 'Please enter from location');
             return;
         }
         if (!formData.toLocation.trim()) {
-            Alert.alert('Validation Error', 'Please enter to location');
+            showAlert('Validation Error', 'Please enter to location');
             return;
         }
         if (!formData.departureDate.trim()) {
-            Alert.alert('Validation Error', 'Please enter departure date');
+            showAlert('Validation Error', 'Please enter departure date');
             return;
         }
 
@@ -120,16 +121,16 @@ export const TripSheetFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.tripSheets.update(tripSheetId.toString(), payload);
-                Alert.alert('Success', 'Trip sheet updated successfully');
+                showSuccess('Trip sheet updated successfully');
             } else {
                 await api.tripSheets.create(payload);
-                Alert.alert('Success', 'Trip sheet created successfully');
+                showSuccess('Trip sheet created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save trip sheet:', error);
-            Alert.alert('Error', error.message || 'Failed to save trip sheet');
+            showError(error.message || 'Failed to save trip sheet');
         } finally {
             setSaving(false);
         }

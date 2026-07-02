@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface FormData {
     customerName: string;
@@ -69,7 +70,7 @@ export const TimeEntryFormScreen: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to fetch time entry:', error);
-            Alert.alert('Error', 'Failed to load time entry details');
+            showError('Failed to load time entry details');
         } finally {
             setLoading(false);
         }
@@ -77,19 +78,19 @@ export const TimeEntryFormScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.customerName.trim()) {
-            Alert.alert('Validation Error', 'Please enter customer name');
+            showAlert('Validation Error', 'Please enter customer name');
             return;
         }
         if (!formData.projectName.trim()) {
-            Alert.alert('Validation Error', 'Please enter project name');
+            showAlert('Validation Error', 'Please enter project name');
             return;
         }
         if (!formData.workDate.trim()) {
-            Alert.alert('Validation Error', 'Please enter work date');
+            showAlert('Validation Error', 'Please enter work date');
             return;
         }
         if (!formData.hours.trim()) {
-            Alert.alert('Validation Error', 'Please enter hours');
+            showAlert('Validation Error', 'Please enter hours');
             return;
         }
 
@@ -105,16 +106,16 @@ export const TimeEntryFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.timeTracking.update(timeEntryId.toString(), payload);
-                Alert.alert('Success', 'Time entry updated successfully');
+                showSuccess('Time entry updated successfully');
             } else {
                 await api.timeTracking.create(payload);
-                Alert.alert('Success', 'Time entry created successfully');
+                showSuccess('Time entry created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save time entry:', error);
-            Alert.alert('Error', error.message || 'Failed to save time entry');
+            showError(error.message || 'Failed to save time entry');
         } finally {
             setSaving(false);
         }

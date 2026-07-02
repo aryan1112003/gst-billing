@@ -13,6 +13,7 @@ import { EmailExpenseDialog } from '../../components/Expense/EmailExpenseDialog'
 import { useTheme } from '../../contexts/ThemeContext';
 import { RootState } from '../../store/store';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface Expense {
   id: string;
@@ -88,7 +89,7 @@ export const ExpensesScreen: React.FC = ({ navigation }: any) => {
       }
     } catch (err: any) {
       console.error('Failed to fetch expenses:', err);
-      Alert.alert('Error', err.message || 'Failed to load expenses');
+      showError(err.message || 'Failed to load expenses');
     } finally {
       setLoading(false);
     }
@@ -328,13 +329,13 @@ export const ExpensesScreen: React.FC = ({ navigation }: any) => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
 
-        Alert.alert('Success', `Expense report downloaded successfully!`);
+        showSuccess(`Expense report downloaded successfully!`);
       } else {
-        Alert.alert('Success', 'PDF download started');
+        showSuccess('PDF download started');
       }
     } catch (err: any) {
       console.error('❌ PDF download error:', err);
-      Alert.alert(
+      showAlert(
         'Download Failed',
         err.message || 'Failed to download PDF. Please try again.'
       );
@@ -356,7 +357,7 @@ export const ExpensesScreen: React.FC = ({ navigation }: any) => {
       await expensesAPI.emailExpense(selectedExpense.id, data);
 
       console.log('✅ Email sent successfully');
-      Alert.alert(
+      showAlert(
         'Email Sent!',
         `Expense report has been sent to ${data.to.join(', ')}`
       );
@@ -373,7 +374,7 @@ export const ExpensesScreen: React.FC = ({ navigation }: any) => {
         errorMessage += err.message || 'Please try again.';
       }
 
-      Alert.alert('Email Failed', errorMessage);
+      showAlert('Email Failed', errorMessage);
     } finally {
       setEmailLoading(false);
     }

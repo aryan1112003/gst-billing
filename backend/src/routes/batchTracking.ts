@@ -132,7 +132,7 @@ router.post('/', authenticate, validateBody(batchSchema), asyncHandler(async (re
         status,
     } = req.body;
 
-    await query(
+    const insertResult = await query(
         `INSERT INTO batches (
             batch_number, item_id, item_name, manufacturing_date,
             expiry_date, quantity, unit, supplier_name,
@@ -144,11 +144,12 @@ router.post('/', authenticate, validateBody(batchSchema), asyncHandler(async (re
             purchaseRate || 0, status || 'active', userId
         ]
     );
+    const newId = insertResult.insertId || (insertResult.rows?.[0]?.id);
 
     res.status(201).json({
         success: true,
         message: 'Batch created successfully',
-        data: { batchNumber }
+        data: { id: newId, batchNumber }
     });
 }));
 

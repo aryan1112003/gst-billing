@@ -58,6 +58,11 @@ router.get('/vendor-credits', ReportController.getVendorCredits);
 router.get('/purchase-by-vendor', ReportController.getPurchaseByVendor);
 router.get('/vendor-payments', ReportController.getVendorPayments);
 
+// Summary & Top Reports
+router.get('/top-customers', ReportController.getTopCustomers);
+router.get('/top-items', ReportController.getTopItems);
+router.get('/monthly-summary', ReportController.getMonthlySummary);
+
 // Export Routes
 router.get('/export/pdf/:reportType', ReportController.exportReportToPDF);
 router.get('/export/excel/:reportType', ReportController.exportReportToExcel);

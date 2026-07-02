@@ -13,6 +13,7 @@ import { OrganizationProfileScreen } from './OrganizationProfileScreen';
 import { AgencyManagementScreen } from './AgencyManagementScreen';
 import { api, agenciesAPI, authAPI } from '../../services/api';
 import { useResponsive } from '../../utils/responsive';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface SettingsItemAction {
   label: string;
@@ -84,9 +85,9 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
       await authAPI.sendOtp();
       setOtpVisible(true);
       setOtp('');
-      Alert.alert('Security Verification', 'An OTP has been sent to your email.');
+      showAlert('Security Verification', 'An OTP has been sent to your email.');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send OTP');
+      showError(error.message || 'Failed to send OTP');
     } finally {
       setOtpLoading(false);
     }
@@ -94,7 +95,7 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
 
   const handleVerifyOtp = async () => {
     if (!otp || otp.length < 6) {
-      Alert.alert('Error', 'Please enter a valid 6-digit OTP');
+      showError('Please enter a valid 6-digit OTP');
       return;
     }
     setOtpLoading(true);
@@ -103,7 +104,7 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
       setOtpVisible(false);
       setActiveSubView('change_password');
     } catch (error: any) {
-      Alert.alert('Verification Failed', error.message || 'Invalid OTP');
+      showAlert('Verification Failed', error.message || 'Invalid OTP');
     } finally {
       setOtpLoading(false);
     }
@@ -148,16 +149,16 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
 
   const handleSaveEmailThemeColor = async (color: string) => {
     if (!resolvedAgencyId) {
-      Alert.alert('Error', 'Agency not found. Please refresh and try again.');
+      showError('Agency not found. Please refresh and try again.');
       return;
     }
     setEmailThemeSaving(true);
     try {
       await agenciesAPI.updateSettings(resolvedAgencyId, { email_theme_color: color });
       setEmailThemeColor(color);
-      Alert.alert('Success', 'Email brand color saved!');
+      showSuccess('Email brand color saved!');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to save email theme color');
+      showError(error.message || 'Failed to save email theme color');
     } finally {
       setEmailThemeSaving(false);
     }
@@ -187,7 +188,7 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
 
   const handleSaveInvoiceSettings = async () => {
     if (!resolvedAgencyId) {
-      Alert.alert('Error', 'Agency not found. Please refresh and try again.');
+      showError('Agency not found. Please refresh and try again.');
       return;
     }
     setSaving(true);
@@ -201,10 +202,10 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
         challan_next_number: invoiceSettings.challanNextNumber,
       };
       await agenciesAPI.updateSettings(resolvedAgencyId, settingsToSave);
-      Alert.alert('Success', 'Templates and numbering settings saved successfully!');
+      showSuccess('Templates and numbering settings saved successfully!');
       setActiveSubView(null);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to save settings');
+      showError(error.message || 'Failed to save settings');
     } finally {
       setSaving(false);
     }
@@ -225,7 +226,7 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
         { label: 'Edit Profile', icon: 'person', action: () => setActiveSubView('edit_profile') },
         { label: 'Change Password', icon: 'lock', action: handleInitiateChangePassword },
         { label: 'Subscription & Billing', icon: 'credit-card', action: () => navigation.navigate('SubscriptionManagement') },
-        { label: 'Privacy Settings', icon: 'security', action: () => Alert.alert('Privacy', 'Privacy settings are managed by your administrator.') },
+        { label: 'Privacy Settings', icon: 'security', action: () => showAlert('Privacy', 'Privacy settings are managed by your administrator.') },
       ]
     },
     {
@@ -266,7 +267,7 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
 
   const handleUpdateProfile = async () => {
     if (!profileData.name || !profileData.email) {
-      Alert.alert('Error', 'Name and Email are required');
+      showError('Name and Email are required');
       return;
     }
 
@@ -275,11 +276,11 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
       const response = await api.put('/auth/profile', profileData);
       if (response.data.success) {
         dispatch(updateUser(profileData));
-        Alert.alert('Success', 'Profile updated successfully.');
+        showSuccess('Profile updated successfully.');
         setActiveSubView(null);
       }
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to update profile');
+      showError(error.response?.data?.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
@@ -287,12 +288,12 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
 
   const handleChangePassword = async () => {
     if (!passwordData.currentPassword || !passwordData.newPassword) {
-      Alert.alert('Error', 'All fields are required');
+      showError('All fields are required');
       return;
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      Alert.alert('Error', 'New passwords do not match');
+      showError('New passwords do not match');
       return;
     }
 
@@ -303,12 +304,12 @@ export const SettingsScreen: React.FC = ({ navigation }: any) => {
         newPassword: passwordData.newPassword,
       });
       if (response.data.success) {
-        Alert.alert('Success', 'Password changed successfully');
+        showSuccess('Password changed successfully');
         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
         setActiveSubView(null);
       }
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to change password');
+      showError(error.response?.data?.message || 'Failed to change password');
     } finally {
       setSaving(false);
     }

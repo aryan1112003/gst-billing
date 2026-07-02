@@ -7,6 +7,7 @@ import { MainLayout } from '../../components/Layout/MainLayout';
 import { SearchableDropdown } from '../../components/Common/SearchableDropdown';
 import { colors } from '../../theme/colors';
 import { expensesAPI, customersAPI } from '../../services/api';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 export const ExpenseFormScreen: React.FC = ({ route, navigation }: any) => {
   const { isMobile, isTablet, isDesktop, rs } = useResponsive();
@@ -72,7 +73,7 @@ export const ExpenseFormScreen: React.FC = ({ route, navigation }: any) => {
       setCustomerName(expense.customer_name || '');
     } catch (err: any) {
       console.error('Failed to load expense:', err);
-      Alert.alert('Error', err.message || 'Failed to load expense details');
+      showError(err.message || 'Failed to load expense details');
     } finally {
       setLoading(false);
     }
@@ -84,12 +85,12 @@ export const ExpenseFormScreen: React.FC = ({ route, navigation }: any) => {
 
   const handleSave = async () => {
     if (!date || !category || !amount) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      showError('Please fill in all required fields');
       return;
     }
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert('Error', 'Amount must be a positive number');
+      showError('Amount must be a positive number');
       return;
     }
 
@@ -114,14 +115,14 @@ export const ExpenseFormScreen: React.FC = ({ route, navigation }: any) => {
 
       if (isEditing) {
         await expensesAPI.update(expenseId, expenseData);
-        Alert.alert('Success', 'Expense updated successfully');
+        showSuccess('Expense updated successfully');
       } else {
         await expensesAPI.create(expenseData);
-        Alert.alert('Success', 'Expense created successfully');
+        showSuccess('Expense created successfully');
       }
       navigation.goBack();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save expense');
+      showError(err.message || 'Failed to save expense');
     } finally {
       setLoading(false);
     }

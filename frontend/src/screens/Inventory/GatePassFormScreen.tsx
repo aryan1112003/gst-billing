@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface GatePassFormData {
     type: 'inward' | 'outward';
@@ -78,7 +79,7 @@ export const GatePassFormScreen: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to fetch gate pass:', error);
-            Alert.alert('Error', 'Failed to load gate pass details');
+            showError('Failed to load gate pass details');
         } finally {
             setLoading(false);
         }
@@ -87,27 +88,27 @@ export const GatePassFormScreen: React.FC = () => {
     const handleSave = async () => {
         // Validation
         if (!formData.partyName.trim()) {
-            Alert.alert('Validation Error', 'Please enter party name');
+            showAlert('Validation Error', 'Please enter party name');
             return;
         }
         if (!formData.vehicleNumber.trim()) {
-            Alert.alert('Validation Error', 'Please enter vehicle number');
+            showAlert('Validation Error', 'Please enter vehicle number');
             return;
         }
         if (!formData.driverName.trim()) {
-            Alert.alert('Validation Error', 'Please enter driver name');
+            showAlert('Validation Error', 'Please enter driver name');
             return;
         }
         if (!formData.driverPhone.trim()) {
-            Alert.alert('Validation Error', 'Please enter driver phone');
+            showAlert('Validation Error', 'Please enter driver phone');
             return;
         }
         if (!formData.itemsDescription.trim()) {
-            Alert.alert('Validation Error', 'Please enter items description');
+            showAlert('Validation Error', 'Please enter items description');
             return;
         }
         if (!formData.quantity.trim() || isNaN(Number(formData.quantity))) {
-            Alert.alert('Validation Error', 'Please enter valid quantity');
+            showAlert('Validation Error', 'Please enter valid quantity');
             return;
         }
 
@@ -120,16 +121,16 @@ export const GatePassFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.gatePasses.update(gatePassId.toString(), payload);
-                Alert.alert('Success', 'Gate pass updated successfully');
+                showSuccess('Gate pass updated successfully');
             } else {
                 await api.gatePasses.create(payload);
-                Alert.alert('Success', 'Gate pass created successfully');
+                showSuccess('Gate pass created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save gate pass:', error);
-            Alert.alert('Error', error.message || 'Failed to save gate pass');
+            showError(error.message || 'Failed to save gate pass');
         } finally {
             setSaving(false);
         }

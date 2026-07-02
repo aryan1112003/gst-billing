@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface FormData {
     vendorId: string;
@@ -72,7 +73,7 @@ export const PurchaseOrderFormScreen: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to fetch purchase order:', error);
-            Alert.alert('Error', 'Failed to load purchase order details');
+            showError('Failed to load purchase order details');
         } finally {
             setLoading(false);
         }
@@ -80,11 +81,11 @@ export const PurchaseOrderFormScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.vendorName.trim()) {
-            Alert.alert('Validation Error', 'Please enter vendor name');
+            showAlert('Validation Error', 'Please enter vendor name');
             return;
         }
         if (!formData.orderDate.trim()) {
-            Alert.alert('Validation Error', 'Please enter order date');
+            showAlert('Validation Error', 'Please enter order date');
             return;
         }
 
@@ -94,16 +95,16 @@ export const PurchaseOrderFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.purchaseOrders.update(purchaseOrderId.toString(), payload);
-                Alert.alert('Success', 'Purchase order updated successfully');
+                showSuccess('Purchase order updated successfully');
             } else {
                 await api.purchaseOrders.create(payload);
-                Alert.alert('Success', 'Purchase order created successfully');
+                showSuccess('Purchase order created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save purchase order:', error);
-            Alert.alert('Error', error.message || 'Failed to save purchase order');
+            showError(error.message || 'Failed to save purchase order');
         } finally {
             setSaving(false);
         }

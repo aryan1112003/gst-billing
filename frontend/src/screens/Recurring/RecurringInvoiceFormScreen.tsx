@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { api } from '../../services/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MainLayout } from '../../components/Layout/MainLayout';
+import { showAlert, showSuccess, showError } from '../../utils/toast';
 
 interface FormData {
     customerName: string;
@@ -69,7 +70,7 @@ export const RecurringInvoiceFormScreen: React.FC = () => {
             });
         } catch (error) {
             console.error('Failed to fetch recurring invoice:', error);
-            Alert.alert('Error', 'Failed to load recurring invoice details');
+            showError('Failed to load recurring invoice details');
         } finally {
             setLoading(false);
         }
@@ -77,15 +78,15 @@ export const RecurringInvoiceFormScreen: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.customerName.trim()) {
-            Alert.alert('Validation Error', 'Please enter customer name');
+            showAlert('Validation Error', 'Please enter customer name');
             return;
         }
         if (!formData.nextDate.trim()) {
-            Alert.alert('Validation Error', 'Please enter next date');
+            showAlert('Validation Error', 'Please enter next date');
             return;
         }
         if (!formData.amount.trim()) {
-            Alert.alert('Validation Error', 'Please enter amount');
+            showAlert('Validation Error', 'Please enter amount');
             return;
         }
 
@@ -95,16 +96,16 @@ export const RecurringInvoiceFormScreen: React.FC = () => {
 
             if (isEditing) {
                 await api.recurringInvoices.update(recurringInvoiceId.toString(), payload);
-                Alert.alert('Success', 'Recurring invoice updated successfully');
+                showSuccess('Recurring invoice updated successfully');
             } else {
                 await api.recurringInvoices.create(payload);
-                Alert.alert('Success', 'Recurring invoice created successfully');
+                showSuccess('Recurring invoice created successfully');
             }
 
             navigation.goBack();
         } catch (error: any) {
             console.error('Failed to save recurring invoice:', error);
-            Alert.alert('Error', error.message || 'Failed to save recurring invoice');
+            showError(error.message || 'Failed to save recurring invoice');
         } finally {
             setSaving(false);
         }

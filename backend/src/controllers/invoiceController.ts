@@ -20,7 +20,7 @@ export class InvoiceController {
     params = filtered.params;
 
     if (search) {
-      whereClause += ` AND (i.invoice_number ILIKE ? OR CONCAT(c.fname, ' ', c.lname) ILIKE ?)`;
+      whereClause += ` AND (i.invoice_number ILIKE ? OR COALESCE(NULLIF(TRIM(c.cdisplay_name),''), NULLIF(TRIM(c.company_name),''), TRIM(CONCAT(c.fname, ' ', c.lname))) ILIKE ?)`;
       params.push(`%${search}%`, `%${search}%`);
     }
 
@@ -59,7 +59,7 @@ export class InvoiceController {
     // Get invoices
     const invoicesResult = await query(
       `SELECT i.*,
-              CONCAT(c.fname, ' ', c.lname) as customer_name,
+              COALESCE(NULLIF(TRIM(c.cdisplay_name),''), NULLIF(TRIM(c.company_name),''), TRIM(CONCAT(c.fname, ' ', c.lname))) as customer_name,
               c.customer_email as customer_email
        FROM invoices i
        JOIN customers c ON i.customer_id = c.id
@@ -80,7 +80,7 @@ export class InvoiceController {
       },
       issueDate: row.invoice_date,
       dueDate: row.due_date,
-      subtotal: parseFloat(row.subtotal ?? 0),
+      subtotal: parseFloat(row.sub_total ?? 0),
       taxAmount: parseFloat(row.tax_amount ?? 0),
       discountAmount: parseFloat(row.discount_amount ?? 0),
       totalAmount: parseFloat(row.total_amount ?? 0),
@@ -121,7 +121,7 @@ export class InvoiceController {
     // Get invoice with customer details
     const invoiceResult = await query(
       `SELECT i.*,
-              CONCAT(c.fname, ' ', c.lname) as customer_name,
+              COALESCE(NULLIF(TRIM(c.cdisplay_name),''), NULLIF(TRIM(c.company_name),''), TRIM(CONCAT(c.fname, ' ', c.lname))) as customer_name,
               c.customer_email as customer_email,
               COALESCE(c.cwork_phone, c.cmobile_phone) as customer_phone,
               c.company_name as customer_company
@@ -137,9 +137,11 @@ export class InvoiceController {
 
     const invoiceRow = invoiceResult.rows[0];
 
-    // Fetch line items from invoice_items table
+    // Fetch line items: try invoice_items table first, fall back to items_details JSON
     let lineItems: any[] = [];
     try {
+      const tableCheck = await query(`SELECT to_regclass('invoice_items') as tbl`);
+      if (!tableCheck.rows[0]?.tbl) throw new Error('no_table');
       const itemsResult = await query(
         `SELECT ii.*, i.hsncode as item_hsn_code
          FROM invoice_items ii
@@ -165,6 +167,28 @@ export class InvoiceController {
       lineItems = [];
     }
 
+    // Fallback: read from items_details JSON if invoice_items table doesn't exist or returned nothing
+    if (lineItems.length === 0 && invoiceRow.items_details) {
+      try {
+        const rawItems = JSON.parse(invoiceRow.items_details);
+        lineItems = (Array.isArray(rawItems) ? rawItems : []).map((item: any, idx: number) => ({
+          id:              idx + 1,
+          itemId:          item.item_id || null,
+          item:            item.item_id ? { id: item.item_id, name: item.item_name || '', sku: '', unit: item.unit || 'pcs', hsnCode: '' } : null,
+          itemName:        item.item_name || '',
+          description:     item.description || item.item_name || '',
+          quantity:        parseFloat(item.quantity ?? 0),
+          unit:            item.unit || 'pcs',
+          unitPrice:       parseFloat(item.rate ?? 0),
+          discountPercent: parseFloat(item.discount_percent ?? 0),
+          taxRate:         parseFloat(item.tax_rate ?? 0),
+          total:           parseFloat(item.amount ?? 0),
+        }));
+      } catch {
+        lineItems = [];
+      }
+    }
+
     const invoice = {
       id: invoiceRow.id,
       invoiceNumber: invoiceRow.invoice_number,
@@ -180,7 +204,7 @@ export class InvoiceController {
       dueDate: invoiceRow.due_date,
       paymentTerms: invoiceRow.payment_terms,
       subject: invoiceRow.subject,
-      subtotal: parseFloat(invoiceRow.subtotal ?? 0),
+      subtotal: parseFloat(invoiceRow.sub_total ?? 0),
       taxAmount: parseFloat(invoiceRow.tax_amount ?? 0),
       discountAmount: parseFloat(invoiceRow.discount_amount ?? 0),
       totalAmount: parseFloat(invoiceRow.total_amount ?? 0),
@@ -267,70 +291,135 @@ export class InvoiceController {
     // Get user's agency_id
     const agencyId = req.agencyId ?? req.user?.agencyId ?? null;
 
-    // Generate invoice number from settings
-    const { agencyService } = await import('../services/agencyService');
-    const settings = await agencyService.getAgencySettings(agencyId!);
-
+    // Generate invoice number (skip agency settings for admin/null agency)
     let invoiceNumber: string;
     let nextNumKey = '';
     let currentNextNumber = 1;
 
-    switch (type) {
-      case 'quotation':
-        currentNextNumber = parseInt(settings.quotation_next_number || '1');
-        invoiceNumber = `${settings.quotation_prefix || 'QUO'}-${currentNextNumber.toString().padStart(4, '0')}`;
-        nextNumKey = 'quotation_next_number';
-        break;
-      case 'challan':
-        currentNextNumber = parseInt(settings.challan_next_number || '1');
-        invoiceNumber = `${settings.challan_prefix || 'DC'}-${currentNextNumber.toString().padStart(4, '0')}`;
-        nextNumKey = 'challan_next_number';
-        break;
-      default:
-        currentNextNumber = parseInt(settings.invoice_next_number || '1');
-        invoiceNumber = `${settings.invoice_prefix || 'INV'}-${currentNextNumber.toString().padStart(4, '0')}`;
-        nextNumKey = 'invoice_next_number';
+    if (agencyId) {
+      try {
+        const { agencyService } = await import('../services/agencyService');
+        const settings = await agencyService.getAgencySettings(agencyId);
+
+        // Helper: find max existing number for a given prefix to avoid duplicates
+        const getMaxExisting = async (prefix: string): Promise<number> => {
+          try {
+            const r = await query(
+              `SELECT invoice_number FROM invoices WHERE agency_id = ? AND invoice_number LIKE ? ORDER BY id DESC LIMIT 100`,
+              [agencyId, `${prefix}-%`]
+            );
+            let max = 0;
+            for (const row of r.rows as any[]) {
+              const n = parseInt((row.invoice_number as string).replace(`${prefix}-`, ''), 10);
+              if (!isNaN(n) && n > max) max = n;
+            }
+            return max;
+          } catch { return 0; }
+        };
+
+        switch (type) {
+          case 'quotation': {
+            const prefix = settings.quotation_prefix || 'QUO';
+            const fromSettings = parseInt(settings.quotation_next_number || '1');
+            const fromDb = await getMaxExisting(prefix);
+            currentNextNumber = Math.max(fromSettings, fromDb + 1);
+            invoiceNumber = `${prefix}-${currentNextNumber.toString().padStart(4, '0')}`;
+            nextNumKey = 'quotation_next_number';
+            break;
+          }
+          case 'challan': {
+            const prefix = settings.challan_prefix || 'DC';
+            const fromSettings = parseInt(settings.challan_next_number || '1');
+            const fromDb = await getMaxExisting(prefix);
+            currentNextNumber = Math.max(fromSettings, fromDb + 1);
+            invoiceNumber = `${prefix}-${currentNextNumber.toString().padStart(4, '0')}`;
+            nextNumKey = 'challan_next_number';
+            break;
+          }
+          default: {
+            const prefix = settings.invoice_prefix || 'INV';
+            const fromSettings = parseInt(settings.invoice_next_number || '1');
+            const fromDb = await getMaxExisting(prefix);
+            currentNextNumber = Math.max(fromSettings, fromDb + 1);
+            invoiceNumber = `${prefix}-${currentNextNumber.toString().padStart(4, '0')}`;
+            nextNumKey = 'invoice_next_number';
+          }
+        }
+      } catch {
+        // Fallback to timestamp-based number if agency settings unavailable
+        const prefix = type === 'quotation' ? 'QUO' : type === 'challan' ? 'DC' : 'INV';
+        invoiceNumber = `${prefix}-${Date.now()}`;
+        nextNumKey = '';
+      }
+    } else {
+      // Admin user without agency — generate fallback number
+      const prefix = type === 'quotation' ? 'QUO' : type === 'challan' ? 'DC' : 'INV';
+      invoiceNumber = `${prefix}-${Date.now()}`;
+      nextNumKey = '';
     }
 
+    // Insert the invoice in a clean transaction (no side-effect queries that could abort it)
     const invoiceId = await withTransaction(async (tq) => {
       const invoiceResult = await tq(
         `INSERT INTO invoices (
           customer_id,
-          invoice_number, invoice_date, due_date, payment_terms, subject,
-          subtotal, discount_amount, tax_amount, total_amount,
-          type, status,
-          customer_notes, terms_conditions, agency_id,
+          invoice_number, invoice_date, due_date,
+          sub_total, total_amount,
+          type, status, is_deleted,
+          agency_id,
           created_by, updated_by, created_date, updated_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, NOW(), NOW())`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 0, ?, ?, ?, NOW(), NOW())`,
         [
           customerId, invoiceNumber, issueDate, dueDate || issueDate,
-          paymentTerms || null, subject || null,
-          subtotal.toFixed(2), parseFloat(String(discountAmount)).toFixed(2),
-          taxAmount.toFixed(2), totalAmount.toFixed(2), type,
-          notes || null, termsConditions || null,
+          subtotal.toFixed(2), totalAmount.toFixed(2), type,
           agencyId,
           req.user?.id || 1, req.user?.id || 1,
         ]
       );
 
-      const newInvoiceId = invoiceResult.insertId;
-
-      for (const li of processedLineItems) {
-        await tq(
-          `INSERT INTO invoice_items
-             (invoice_id, item_id, item_name, description, quantity, unit, rate, discount_percent, tax_rate, amount)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newInvoiceId, li.item_id, li.item_name, li.description, li.quantity, li.unit, li.rate, li.discount_percent, li.tax_rate, li.amount]
-        );
+      // Fallback: if insertId is null, look up by invoice_number
+      let newInvoiceId = invoiceResult.insertId;
+      if (!newInvoiceId) {
+        const findResult = await tq('SELECT id FROM invoices WHERE invoice_number = ?', [invoiceNumber]);
+        newInvoiceId = findResult.rows?.[0]?.id ?? null;
       }
 
       return newInvoiceId;
     });
 
-    // Increment document number in settings
-    if (nextNumKey) {
+    // Store line items OUTSIDE the transaction to avoid aborting it on schema mismatches
+    if (invoiceId && processedLineItems.length > 0) {
       try {
-        await agencyService.updateAgencySettings(agencyId!, {
+        await query(
+          `UPDATE invoices SET items_details = ? WHERE id = ?`,
+          [JSON.stringify(processedLineItems), invoiceId]
+        );
+      } catch {
+        // items_details column may not exist — proceed without it
+      }
+      try {
+        // Check if invoice_items table exists before inserting to avoid noisy logs
+        const tableCheck = await query(`SELECT to_regclass('invoice_items') as tbl`);
+        if (tableCheck.rows[0]?.tbl) {
+          for (const li of processedLineItems) {
+            await query(
+              `INSERT INTO invoice_items
+                 (invoice_id, item_id, item_name, description, quantity, unit, rate, discount_percent, tax_rate, amount)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [invoiceId, li.item_id, li.item_name, li.description, li.quantity, li.unit, li.rate, li.discount_percent, li.tax_rate, li.amount]
+            );
+          }
+        }
+      } catch {
+        // invoice_items table doesn't exist — items stored in items_details
+      }
+    }
+
+    // Increment document number in settings
+    if (nextNumKey && agencyId) {
+      try {
+        const { agencyService: svc } = await import('../services/agencyService');
+        await svc.updateAgencySettings(agencyId, {
           [nextNumKey]: (currentNextNumber + 1).toString(),
         });
       } catch (settingsError) {
@@ -341,17 +430,29 @@ export class InvoiceController {
     const invoiceData = await query('SELECT * FROM invoices WHERE id = ?', [invoiceId]);
     const invoice = invoiceData.rows[0];
 
-    await AuditService.logAction(
-      req.user?.id ? String(req.user.id) : undefined,
-      'invoices', invoice.id, 'CREATE', null, invoice,
-      req.ip, req.get('User-Agent')
-    );
+    if (!invoice) {
+      // Invoice inserted but can't be fetched — return minimal flat response
+      res.status(201).json({
+        success: true,
+        data: { id: invoiceId, invoiceNumber, status: 'draft', type },
+        message: 'Invoice created successfully'
+      });
+      return;
+    }
+
+    try {
+      await AuditService.logAction(
+        req.user?.id ? String(req.user.id) : undefined,
+        'invoices', invoice.id, 'CREATE', null, invoice,
+        req.ip, req.get('User-Agent')
+      );
+    } catch { /* audit log failure is non-fatal */ }
 
     logger.info('Invoice created', { invoiceId: invoice.id, invoiceNumber, userId: req.user?.id });
 
     res.status(201).json({
       success: true,
-      data: { invoice },
+      data: invoice,
     });
   });
 
@@ -414,7 +515,7 @@ export class InvoiceController {
 
       const effectiveDiscount = discountAmount !== undefined ? parseFloat(String(discountAmount)) : parseFloat(existingInvoice.discount_amount ?? 0);
       const totalAmount = parseFloat((subtotal + taxAmount - effectiveDiscount).toFixed(2));
-      updateFields.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
+      updateFields.push('sub_total = ?', 'tax_amount = ?', 'total_amount = ?');
       updateParams.push(subtotal.toFixed(2), taxAmount.toFixed(2), totalAmount.toFixed(2));
       newLineItems = processedLineItems;
     }
@@ -476,7 +577,11 @@ export class InvoiceController {
     }
 
     await withTransaction(async (tq) => {
-      await tq('DELETE FROM invoice_items WHERE invoice_id = ?', [id]);
+      // invoice_items table may not exist (items stored in items_details JSON column)
+      const tableCheck = await tq(`SELECT to_regclass('public.invoice_items') as tbl`, []);
+      if (tableCheck.rows[0]?.tbl) {
+        await tq('DELETE FROM invoice_items WHERE invoice_id = ?', [id]);
+      }
       await tq(
         'UPDATE invoices SET is_deleted = 1, updated_by = ?, updated_date = NOW() WHERE id = ?',
         [req.user?.id || 1, id]
@@ -512,7 +617,7 @@ export class InvoiceController {
     const filtered = addAgencyFilter(whereClause, params, req.agencyId ?? null, 'i');
 
     const invoiceResult = await query(
-      `SELECT i.*, CONCAT(c.fname, ' ', c.lname) as customer_name, c.customer_email
+      `SELECT i.*, COALESCE(NULLIF(TRIM(c.cdisplay_name),''), NULLIF(TRIM(c.company_name),''), TRIM(CONCAT(c.fname, ' ', c.lname))) as customer_name, c.customer_email
        FROM invoices i JOIN customers c ON i.customer_id = c.id ${filtered.whereClause}`,
       filtered.params
     );
@@ -595,4 +700,6 @@ export class InvoiceController {
     res.send(pdfBuffer);
   });
 }
+
+
 

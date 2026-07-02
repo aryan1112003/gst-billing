@@ -23,6 +23,20 @@ const gatePassSchema = Joi.object({
     status: Joi.string().valid('pending', 'approved', 'rejected', 'completed').default('pending'),
 });
 
+const gatePassUpdateSchema = Joi.object({
+    type: Joi.string().valid('inward', 'outward'),
+    partyName: Joi.string(),
+    vehicleNumber: Joi.string(),
+    driverName: Joi.string(),
+    driverPhone: Joi.string(),
+    purpose: Joi.string().allow('', null),
+    itemsDescription: Joi.string(),
+    quantity: Joi.number(),
+    unit: Joi.string(),
+    remarks: Joi.string().allow('', null),
+    status: Joi.string().valid('pending', 'approved', 'rejected', 'completed'),
+});
+
 const paginationSchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
@@ -80,7 +94,7 @@ router.get('/', authenticate, validateQuery(paginationSchema), asyncHandler(asyn
 
     // Get records (schema uses created_date not created_date)
     const result = await query(
-        `SELECT * FROM gate_passes ${whereClause} ORDER BY created_date DESC LIMIT ? OFFSET ?`,
+        `SELECT * FROM gate_passes ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
         [...params, parseInt(limit), offset]
     );
 
@@ -99,8 +113,8 @@ router.get('/', authenticate, validateQuery(paginationSchema), asyncHandler(asyn
         unit: row.unit,
         remarks: row.remarks,
         status: row.status,
-        createdAt: row.created_date,
-        updatedAt: row.updated_date,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
     }));
 
     res.json({
@@ -144,8 +158,8 @@ router.get('/:id', authenticate, asyncHandler(async (req: AuthRequest, res: Resp
         unit: row.unit,
         remarks: row.remarks,
         status: row.status,
-        createdAt: row.created_date,
-        updatedAt: row.updated_date,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
     };
 
     res.json({
@@ -174,7 +188,7 @@ router.post('/', authenticate, validateBody(gatePassSchema), asyncHandler(async 
         status
     } = req.body;
 
-    await query(
+    const insertResult = await query(
         `INSERT INTO gate_passes (
             gate_pass_number, type, party_name, vehicle_number,
             driver_name, driver_phone, purpose, items_description,
@@ -186,16 +200,17 @@ router.post('/', authenticate, validateBody(gatePassSchema), asyncHandler(async 
             quantity, unit, remarks, status || 'pending', userId
         ]
     );
+    const newId = insertResult.insertId || (insertResult.rows?.[0]?.id);
 
     res.status(201).json({
         success: true,
         message: 'Gate pass created successfully',
-        data: { gatePassNumber }
+        data: { id: newId, gatePassNumber }
     });
 }));
 
 // Update gate pass
-router.put('/:id', authenticate, validateBody(gatePassSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, validateBody(gatePassUpdateSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const agencyId = req.user!.agencyId;
 
@@ -213,19 +228,24 @@ router.put('/:id', authenticate, validateBody(gatePassSchema), asyncHandler(asyn
         status
     } = req.body;
 
+    const fields: string[] = [];
+    const vals: any[] = [];
+    if (type !== undefined) { fields.push('type = ?'); vals.push(type); }
+    if (partyName !== undefined) { fields.push('party_name = ?'); vals.push(partyName); }
+    if (vehicleNumber !== undefined) { fields.push('vehicle_number = ?'); vals.push(vehicleNumber); }
+    if (driverName !== undefined) { fields.push('driver_name = ?'); vals.push(driverName); }
+    if (driverPhone !== undefined) { fields.push('driver_phone = ?'); vals.push(driverPhone); }
+    if (purpose !== undefined) { fields.push('purpose = ?'); vals.push(purpose); }
+    if (itemsDescription !== undefined) { fields.push('items_description = ?'); vals.push(itemsDescription); }
+    if (quantity !== undefined) { fields.push('quantity = ?'); vals.push(quantity); }
+    if (unit !== undefined) { fields.push('unit = ?'); vals.push(unit); }
+    if (remarks !== undefined) { fields.push('remarks = ?'); vals.push(remarks); }
+    if (status !== undefined) { fields.push('status = ?'); vals.push(status); }
+    if (fields.length === 0) throw createError('No fields to update', 400);
+
     const result = await query(
-        `UPDATE gate_passes SET 
-            type = ?, party_name = ?, vehicle_number = ?, 
-            driver_name = ?, driver_phone = ?, purpose = ?, 
-            items_description = ?, quantity = ?, unit = ?, 
-            remarks = ?, status = ?
-         WHERE id = ?`,
-        [
-            type, partyName, vehicleNumber,
-            driverName, driverPhone, purpose,
-            itemsDescription, quantity, unit,
-            remarks, status, id
-        ]
+        `UPDATE gate_passes SET ${fields.join(', ')} WHERE id = ?`,
+        [...vals, id]
     );
 
     if (result.affectedRows === 0) {
