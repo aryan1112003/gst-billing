@@ -421,6 +421,8 @@ const styles = StyleSheet.create({
   },
   tableHeaderRow: {
     height: 52,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   tableHeaderText: {
     fontSize: 11,
@@ -433,6 +435,8 @@ const styles = StyleSheet.create({
   tableRow: {
     borderBottomWidth: 1,
     minHeight: 56,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   tableCellText: {
     fontSize: 14,
