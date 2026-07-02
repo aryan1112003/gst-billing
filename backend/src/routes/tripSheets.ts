@@ -22,6 +22,20 @@ const tripSheetSchema = Joi.object({
     status: Joi.string().valid('planned', 'in-transit', 'completed', 'cancelled').default('planned'),
 });
 
+const tripSheetUpdateSchema = Joi.object({
+    vehicleNumber: Joi.string(),
+    driverName: Joi.string(),
+    driverPhone: Joi.string(),
+    fromLocation: Joi.string(),
+    toLocation: Joi.string(),
+    departureDate: Joi.string(),
+    returnDate: Joi.string().allow('', null),
+    purpose: Joi.string().allow('', null),
+    distanceKm: Joi.number(),
+    fuelCost: Joi.number(),
+    status: Joi.string().valid('planned', 'in-transit', 'completed', 'cancelled'),
+});
+
 const paginationSchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
@@ -182,7 +196,7 @@ router.post('/', authenticate, validateBody(tripSheetSchema), asyncHandler(async
 }));
 
 // Update trip sheet
-router.put('/:id', authenticate, validateBody(tripSheetSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, validateBody(tripSheetUpdateSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     const {
@@ -199,19 +213,24 @@ router.put('/:id', authenticate, validateBody(tripSheetSchema), asyncHandler(asy
         status,
     } = req.body;
 
+    const fields: string[] = [];
+    const vals: any[] = [];
+    if (vehicleNumber !== undefined) { fields.push('vehicle_number = ?'); vals.push(vehicleNumber); }
+    if (driverName !== undefined) { fields.push('driver_name = ?'); vals.push(driverName); }
+    if (driverPhone !== undefined) { fields.push('driver_phone = ?'); vals.push(driverPhone); }
+    if (fromLocation !== undefined) { fields.push('from_location = ?'); vals.push(fromLocation); }
+    if (toLocation !== undefined) { fields.push('to_location = ?'); vals.push(toLocation); }
+    if (departureDate !== undefined) { fields.push('departure_date = ?'); vals.push(departureDate); }
+    if (returnDate !== undefined) { fields.push('return_date = ?'); vals.push(returnDate); }
+    if (purpose !== undefined) { fields.push('purpose = ?'); vals.push(purpose); }
+    if (distanceKm !== undefined) { fields.push('distance_km = ?'); vals.push(distanceKm); }
+    if (fuelCost !== undefined) { fields.push('fuel_cost = ?'); vals.push(fuelCost); }
+    if (status !== undefined) { fields.push('status = ?'); vals.push(status); }
+    if (fields.length === 0) throw createError('No fields to update', 400);
+
     const result = await query(
-        `UPDATE trip_sheets SET
-            vehicle_number = ?, driver_name = ?, driver_phone = ?,
-            from_location = ?, to_location = ?, departure_date = ?,
-            return_date = ?, purpose = ?, distance_km = ?,
-            fuel_cost = ?, status = ?
-         WHERE id = ?`,
-        [
-            vehicleNumber, driverName, driverPhone,
-            fromLocation, toLocation, departureDate,
-            returnDate, purpose, distanceKm,
-            fuelCost, status, id
-        ]
+        `UPDATE trip_sheets SET ${fields.join(', ')} WHERE id = ?`,
+        [...vals, id]
     );
 
     if (result.affectedRows === 0) {

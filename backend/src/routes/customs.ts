@@ -23,6 +23,21 @@ const shipmentSchema = Joi.object({
     status: Joi.string().valid('in-transit', 'at-port', 'cleared', 'delivered').default('in-transit'),
 });
 
+const shipmentUpdateSchema = Joi.object({
+    type: Joi.string().valid('import', 'export'),
+    partyName: Joi.string(),
+    country: Joi.string(),
+    port: Joi.string().allow('', null),
+    billOfLading: Joi.string().allow('', null),
+    shipmentDate: Joi.string(),
+    clearanceDate: Joi.string().allow('', null),
+    dutyAmount: Joi.number(),
+    freightAmount: Joi.number(),
+    totalValue: Joi.number(),
+    currency: Joi.string(),
+    status: Joi.string().valid('in-transit', 'at-port', 'cleared', 'delivered'),
+});
+
 const paginationSchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
@@ -188,7 +203,7 @@ router.post('/', authenticate, validateBody(shipmentSchema), asyncHandler(async 
 }));
 
 // Update customs shipment
-router.put('/:id', authenticate, validateBody(shipmentSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, validateBody(shipmentUpdateSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     const {
@@ -206,19 +221,25 @@ router.put('/:id', authenticate, validateBody(shipmentSchema), asyncHandler(asyn
         status,
     } = req.body;
 
+    const fields: string[] = [];
+    const vals: any[] = [];
+    if (type !== undefined) { fields.push('type = ?'); vals.push(type); }
+    if (partyName !== undefined) { fields.push('party_name = ?'); vals.push(partyName); }
+    if (country !== undefined) { fields.push('country = ?'); vals.push(country); }
+    if (port !== undefined) { fields.push('port = ?'); vals.push(port); }
+    if (billOfLading !== undefined) { fields.push('bill_of_lading = ?'); vals.push(billOfLading); }
+    if (shipmentDate !== undefined) { fields.push('shipment_date = ?'); vals.push(shipmentDate); }
+    if (clearanceDate !== undefined) { fields.push('clearance_date = ?'); vals.push(clearanceDate); }
+    if (dutyAmount !== undefined) { fields.push('duty_amount = ?'); vals.push(dutyAmount); }
+    if (freightAmount !== undefined) { fields.push('freight_amount = ?'); vals.push(freightAmount); }
+    if (totalValue !== undefined) { fields.push('total_value = ?'); vals.push(totalValue); }
+    if (currency !== undefined) { fields.push('currency = ?'); vals.push(currency); }
+    if (status !== undefined) { fields.push('status = ?'); vals.push(status); }
+    if (fields.length === 0) throw createError('No fields to update', 400);
+
     const result = await query(
-        `UPDATE customs_shipments SET
-            type = ?, party_name = ?, country = ?, port = ?,
-            bill_of_lading = ?, shipment_date = ?, clearance_date = ?,
-            duty_amount = ?, freight_amount = ?, total_value = ?,
-            currency = ?, status = ?
-         WHERE id = ?`,
-        [
-            type, partyName, country, port,
-            billOfLading, shipmentDate, clearanceDate,
-            dutyAmount, freightAmount, totalValue,
-            currency, status, id
-        ]
+        `UPDATE customs_shipments SET ${fields.join(', ')} WHERE id = ?`,
+        [...vals, id]
     );
 
     if (result.affectedRows === 0) {

@@ -21,6 +21,19 @@ const posSaleSchema = Joi.object({
     status: Joi.string().valid('completed', 'refunded').default('completed'),
 });
 
+const posSaleUpdateSchema = Joi.object({
+    customerId: Joi.number().allow(null),
+    customerName: Joi.string(),
+    saleDate: Joi.string(),
+    itemsJson: Joi.string().allow('', null),
+    subtotal: Joi.number(),
+    taxAmount: Joi.number(),
+    discount: Joi.number(),
+    total: Joi.number(),
+    paymentMethod: Joi.string().valid('cash', 'card', 'upi', 'other'),
+    status: Joi.string().valid('completed', 'refunded'),
+});
+
 const paginationSchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
@@ -178,7 +191,7 @@ router.post('/', authenticate, validateBody(posSaleSchema), asyncHandler(async (
 }));
 
 // Update POS sale
-router.put('/:id', authenticate, validateBody(posSaleSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, validateBody(posSaleUpdateSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     const {
@@ -194,17 +207,23 @@ router.put('/:id', authenticate, validateBody(posSaleSchema), asyncHandler(async
         status,
     } = req.body;
 
+    const fields: string[] = [];
+    const vals: any[] = [];
+    if (customerId !== undefined) { fields.push('customer_id = ?'); vals.push(customerId); }
+    if (customerName !== undefined) { fields.push('customer_name = ?'); vals.push(customerName); }
+    if (saleDate !== undefined) { fields.push('sale_date = ?'); vals.push(saleDate); }
+    if (itemsJson !== undefined) { fields.push('items_json = ?'); vals.push(itemsJson); }
+    if (subtotal !== undefined) { fields.push('subtotal = ?'); vals.push(subtotal); }
+    if (taxAmount !== undefined) { fields.push('tax_amount = ?'); vals.push(taxAmount); }
+    if (discount !== undefined) { fields.push('discount = ?'); vals.push(discount); }
+    if (total !== undefined) { fields.push('total = ?'); vals.push(total); }
+    if (paymentMethod !== undefined) { fields.push('payment_method = ?'); vals.push(paymentMethod); }
+    if (status !== undefined) { fields.push('status = ?'); vals.push(status); }
+    if (fields.length === 0) throw createError('No fields to update', 400);
+
     const result = await query(
-        `UPDATE pos_sales SET
-            customer_id = ?, customer_name = ?, sale_date = ?,
-            items_json = ?, subtotal = ?, tax_amount = ?,
-            discount = ?, total = ?, payment_method = ?, status = ?
-         WHERE id = ?`,
-        [
-            customerId, customerName, saleDate,
-            itemsJson, subtotal, taxAmount,
-            discount, total, paymentMethod, status, id
-        ]
+        `UPDATE pos_sales SET ${fields.join(', ')} WHERE id = ?`,
+        [...vals, id]
     );
 
     if (result.affectedRows === 0) {

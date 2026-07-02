@@ -20,6 +20,18 @@ const purchaseOrderSchema = Joi.object({
     notes: Joi.string().allow('', null),
 });
 
+const purchaseOrderUpdateSchema = Joi.object({
+    vendorId: Joi.number().allow(null, ''),
+    vendorName: Joi.string(),
+    orderDate: Joi.string(),
+    expectedDelivery: Joi.string().allow('', null),
+    status: Joi.string().valid('draft', 'sent', 'received', 'cancelled'),
+    subtotal: Joi.number(),
+    taxAmount: Joi.number(),
+    totalAmount: Joi.number(),
+    notes: Joi.string().allow('', null),
+});
+
 const paginationSchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
@@ -174,7 +186,7 @@ router.post('/', authenticate, validateBody(purchaseOrderSchema), asyncHandler(a
 }));
 
 // Update purchase order
-router.put('/:id', authenticate, validateBody(purchaseOrderSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, validateBody(purchaseOrderUpdateSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     const {
@@ -189,17 +201,22 @@ router.put('/:id', authenticate, validateBody(purchaseOrderSchema), asyncHandler
         notes,
     } = req.body;
 
+    const fields: string[] = [];
+    const vals: any[] = [];
+    if (vendorId !== undefined) { fields.push('vendor_id = ?'); vals.push(vendorId); }
+    if (vendorName !== undefined) { fields.push('vendor_name = ?'); vals.push(vendorName); }
+    if (orderDate !== undefined) { fields.push('order_date = ?'); vals.push(orderDate); }
+    if (expectedDelivery !== undefined) { fields.push('expected_delivery = ?'); vals.push(expectedDelivery); }
+    if (status !== undefined) { fields.push('status = ?'); vals.push(status); }
+    if (subtotal !== undefined) { fields.push('subtotal = ?'); vals.push(subtotal); }
+    if (taxAmount !== undefined) { fields.push('tax_amount = ?'); vals.push(taxAmount); }
+    if (totalAmount !== undefined) { fields.push('total_amount = ?'); vals.push(totalAmount); }
+    if (notes !== undefined) { fields.push('notes = ?'); vals.push(notes); }
+    if (fields.length === 0) throw createError('No fields to update', 400);
+
     const result = await query(
-        `UPDATE purchase_orders SET
-            vendor_id = ?, vendor_name = ?, order_date = ?,
-            expected_delivery = ?, status = ?, subtotal = ?,
-            tax_amount = ?, total_amount = ?, notes = ?
-         WHERE id = ?`,
-        [
-            vendorId, vendorName, orderDate,
-            expectedDelivery, status, subtotal,
-            taxAmount, totalAmount, notes, id
-        ]
+        `UPDATE purchase_orders SET ${fields.join(', ')} WHERE id = ?`,
+        [...vals, id]
     );
 
     if (result.affectedRows === 0) {

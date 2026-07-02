@@ -22,6 +22,20 @@ const vehicleSchema = Joi.object({
     status: Joi.string().valid('active', 'inactive', 'under-maintenance').default('active'),
 });
 
+const vehicleUpdateSchema = Joi.object({
+    vehicleNumber: Joi.string(),
+    vehicleType: Joi.string(),
+    make: Joi.string(),
+    model: Joi.string(),
+    year: Joi.number().allow(null),
+    color: Joi.string().allow('', null),
+    registrationDate: Joi.string().allow('', null),
+    insuranceExpiry: Joi.string().allow('', null),
+    fitnessExpiry: Joi.string().allow('', null),
+    rcNumber: Joi.string().allow('', null),
+    status: Joi.string().valid('active', 'inactive', 'under-maintenance'),
+});
+
 const paginationSchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
@@ -157,7 +171,7 @@ router.post('/', authenticate, validateBody(vehicleSchema), asyncHandler(async (
 }));
 
 // Update vehicle
-router.put('/:id', authenticate, validateBody(vehicleSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, validateBody(vehicleUpdateSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     const {
@@ -174,17 +188,24 @@ router.put('/:id', authenticate, validateBody(vehicleSchema), asyncHandler(async
         status,
     } = req.body;
 
+    const fields: string[] = [];
+    const vals: any[] = [];
+    if (vehicleNumber !== undefined) { fields.push('vehicle_number = ?'); vals.push(vehicleNumber); }
+    if (vehicleType !== undefined) { fields.push('vehicle_type = ?'); vals.push(vehicleType); }
+    if (make !== undefined) { fields.push('make = ?'); vals.push(make); }
+    if (model !== undefined) { fields.push('model = ?'); vals.push(model); }
+    if (year !== undefined) { fields.push('year = ?'); vals.push(year); }
+    if (color !== undefined) { fields.push('color = ?'); vals.push(color); }
+    if (registrationDate !== undefined) { fields.push('registration_date = ?'); vals.push(registrationDate); }
+    if (insuranceExpiry !== undefined) { fields.push('insurance_expiry = ?'); vals.push(insuranceExpiry); }
+    if (fitnessExpiry !== undefined) { fields.push('fitness_expiry = ?'); vals.push(fitnessExpiry); }
+    if (rcNumber !== undefined) { fields.push('rc_number = ?'); vals.push(rcNumber); }
+    if (status !== undefined) { fields.push('status = ?'); vals.push(status); }
+    if (fields.length === 0) throw createError('No fields to update', 400);
+
     const result = await query(
-        `UPDATE vehicles SET
-            vehicle_number = ?, vehicle_type = ?, make = ?, model = ?,
-            year = ?, color = ?, registration_date = ?, insurance_expiry = ?,
-            fitness_expiry = ?, rc_number = ?, status = ?
-         WHERE id = ?`,
-        [
-            vehicleNumber, vehicleType, make, model,
-            year, color, registrationDate, insuranceExpiry,
-            fitnessExpiry, rcNumber, status, id
-        ]
+        `UPDATE vehicles SET ${fields.join(', ')} WHERE id = ?`,
+        [...vals, id]
     );
 
     if (result.affectedRows === 0) {

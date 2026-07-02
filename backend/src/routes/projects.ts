@@ -20,6 +20,18 @@ const projectSchema = Joi.object({
     description: Joi.string().allow('', null),
 });
 
+const projectUpdateSchema = Joi.object({
+    projectName: Joi.string(),
+    customerId: Joi.number().allow(null),
+    customerName: Joi.string().allow('', null),
+    startDate: Joi.string(),
+    endDate: Joi.string().allow('', null),
+    budget: Joi.number(),
+    billedAmount: Joi.number(),
+    status: Joi.string().valid('planning', 'active', 'on-hold', 'completed', 'cancelled'),
+    description: Joi.string().allow('', null),
+});
+
 const paginationSchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
@@ -174,7 +186,7 @@ router.post('/', authenticate, validateBody(projectSchema), asyncHandler(async (
 }));
 
 // Update project
-router.put('/:id', authenticate, validateBody(projectSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, validateBody(projectUpdateSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     const {
@@ -189,17 +201,22 @@ router.put('/:id', authenticate, validateBody(projectSchema), asyncHandler(async
         description,
     } = req.body;
 
+    const fields: string[] = [];
+    const vals: any[] = [];
+    if (projectName !== undefined) { fields.push('project_name = ?'); vals.push(projectName); }
+    if (customerId !== undefined) { fields.push('customer_id = ?'); vals.push(customerId); }
+    if (customerName !== undefined) { fields.push('customer_name = ?'); vals.push(customerName); }
+    if (startDate !== undefined) { fields.push('start_date = ?'); vals.push(startDate); }
+    if (endDate !== undefined) { fields.push('end_date = ?'); vals.push(endDate); }
+    if (budget !== undefined) { fields.push('budget = ?'); vals.push(budget); }
+    if (billedAmount !== undefined) { fields.push('billed_amount = ?'); vals.push(billedAmount); }
+    if (status !== undefined) { fields.push('status = ?'); vals.push(status); }
+    if (description !== undefined) { fields.push('description = ?'); vals.push(description); }
+    if (fields.length === 0) throw createError('No fields to update', 400);
+
     const result = await query(
-        `UPDATE projects SET
-            project_name = ?, customer_id = ?, customer_name = ?,
-            start_date = ?, end_date = ?, budget = ?,
-            billed_amount = ?, status = ?, description = ?
-         WHERE id = ?`,
-        [
-            projectName, customerId, customerName,
-            startDate, endDate, budget,
-            billedAmount, status, description, id
-        ]
+        `UPDATE projects SET ${fields.join(', ')} WHERE id = ?`,
+        [...vals, id]
     );
 
     if (result.affectedRows === 0) {

@@ -20,6 +20,18 @@ const timeEntrySchema = Joi.object({
     hourlyRate: Joi.number().default(0),
 });
 
+const timeEntryUpdateSchema = Joi.object({
+    customerId: Joi.number().allow(null),
+    customerName: Joi.string().allow('', null),
+    projectName: Joi.string(),
+    workDate: Joi.string(),
+    hours: Joi.number(),
+    description: Joi.string().allow('', null),
+    billable: Joi.number(),
+    billed: Joi.number(),
+    hourlyRate: Joi.number(),
+});
+
 const paginationSchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
@@ -174,7 +186,7 @@ router.post('/', authenticate, validateBody(timeEntrySchema), asyncHandler(async
 }));
 
 // Update time entry
-router.put('/:id', authenticate, validateBody(timeEntrySchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, validateBody(timeEntryUpdateSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     const {
@@ -189,17 +201,22 @@ router.put('/:id', authenticate, validateBody(timeEntrySchema), asyncHandler(asy
         hourlyRate,
     } = req.body;
 
+    const fields: string[] = [];
+    const vals: any[] = [];
+    if (customerId !== undefined) { fields.push('customer_id = ?'); vals.push(customerId); }
+    if (customerName !== undefined) { fields.push('customer_name = ?'); vals.push(customerName); }
+    if (projectName !== undefined) { fields.push('project_name = ?'); vals.push(projectName); }
+    if (workDate !== undefined) { fields.push('work_date = ?'); vals.push(workDate); }
+    if (hours !== undefined) { fields.push('hours = ?'); vals.push(hours); }
+    if (description !== undefined) { fields.push('description = ?'); vals.push(description); }
+    if (billable !== undefined) { fields.push('billable = ?'); vals.push(billable); }
+    if (billed !== undefined) { fields.push('billed = ?'); vals.push(billed); }
+    if (hourlyRate !== undefined) { fields.push('hourly_rate = ?'); vals.push(hourlyRate); }
+    if (fields.length === 0) throw createError('No fields to update', 400);
+
     const result = await query(
-        `UPDATE time_entries SET
-            customer_id = ?, customer_name = ?, project_name = ?,
-            work_date = ?, hours = ?, description = ?,
-            billable = ?, billed = ?, hourly_rate = ?
-         WHERE id = ?`,
-        [
-            customerId, customerName, projectName,
-            workDate, hours, description,
-            billable, billed, hourlyRate, id
-        ]
+        `UPDATE time_entries SET ${fields.join(', ')} WHERE id = ?`,
+        [...vals, id]
     );
 
     if (result.affectedRows === 0) {

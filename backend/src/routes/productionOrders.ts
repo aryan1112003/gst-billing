@@ -19,6 +19,17 @@ const productionOrderSchema = Joi.object({
     notes: Joi.string().allow('', null),
 });
 
+const productionOrderUpdateSchema = Joi.object({
+    productName: Joi.string(),
+    itemId: Joi.number().allow(null),
+    quantity: Joi.number(),
+    unit: Joi.string(),
+    plannedDate: Joi.string(),
+    completionDate: Joi.string().allow('', null),
+    status: Joi.string().valid('planned', 'in-progress', 'completed', 'cancelled'),
+    notes: Joi.string().allow('', null),
+});
+
 const paginationSchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
@@ -170,7 +181,7 @@ router.post('/', authenticate, validateBody(productionOrderSchema), asyncHandler
 }));
 
 // Update production order
-router.put('/:id', authenticate, validateBody(productionOrderSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, validateBody(productionOrderUpdateSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     const {
@@ -184,17 +195,21 @@ router.put('/:id', authenticate, validateBody(productionOrderSchema), asyncHandl
         notes,
     } = req.body;
 
+    const fields: string[] = [];
+    const vals: any[] = [];
+    if (productName !== undefined) { fields.push('product_name = ?'); vals.push(productName); }
+    if (itemId !== undefined) { fields.push('item_id = ?'); vals.push(itemId); }
+    if (quantity !== undefined) { fields.push('quantity = ?'); vals.push(quantity); }
+    if (unit !== undefined) { fields.push('unit = ?'); vals.push(unit); }
+    if (plannedDate !== undefined) { fields.push('planned_date = ?'); vals.push(plannedDate); }
+    if (completionDate !== undefined) { fields.push('completion_date = ?'); vals.push(completionDate); }
+    if (status !== undefined) { fields.push('status = ?'); vals.push(status); }
+    if (notes !== undefined) { fields.push('notes = ?'); vals.push(notes); }
+    if (fields.length === 0) throw createError('No fields to update', 400);
+
     const result = await query(
-        `UPDATE production_orders SET
-            product_name = ?, item_id = ?, quantity = ?,
-            unit = ?, planned_date = ?, completion_date = ?,
-            status = ?, notes = ?
-         WHERE id = ?`,
-        [
-            productName, itemId, quantity,
-            unit, plannedDate, completionDate,
-            status, notes, id
-        ]
+        `UPDATE production_orders SET ${fields.join(', ')} WHERE id = ?`,
+        [...vals, id]
     );
 
     if (result.affectedRows === 0) {

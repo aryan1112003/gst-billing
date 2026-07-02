@@ -20,6 +20,18 @@ const recurringInvoiceSchema = Joi.object({
     status: Joi.string().valid('active', 'paused', 'completed').default('active'),
 });
 
+const recurringInvoiceUpdateSchema = Joi.object({
+    customerId: Joi.number().allow(null),
+    customerName: Joi.string(),
+    frequency: Joi.string().valid('weekly', 'monthly', 'quarterly', 'yearly'),
+    nextDate: Joi.string(),
+    endDate: Joi.string().allow('', null),
+    amount: Joi.number(),
+    taxRate: Joi.number(),
+    description: Joi.string().allow('', null),
+    status: Joi.string().valid('active', 'paused', 'completed'),
+});
+
 const paginationSchema = Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
@@ -174,7 +186,7 @@ router.post('/', authenticate, validateBody(recurringInvoiceSchema), asyncHandle
 }));
 
 // Update recurring invoice
-router.put('/:id', authenticate, validateBody(recurringInvoiceSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, validateBody(recurringInvoiceUpdateSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     const {
@@ -189,17 +201,22 @@ router.put('/:id', authenticate, validateBody(recurringInvoiceSchema), asyncHand
         status,
     } = req.body;
 
+    const fields: string[] = [];
+    const vals: any[] = [];
+    if (customerId !== undefined) { fields.push('customer_id = ?'); vals.push(customerId); }
+    if (customerName !== undefined) { fields.push('customer_name = ?'); vals.push(customerName); }
+    if (frequency !== undefined) { fields.push('frequency = ?'); vals.push(frequency); }
+    if (nextDate !== undefined) { fields.push('next_date = ?'); vals.push(nextDate); }
+    if (endDate !== undefined) { fields.push('end_date = ?'); vals.push(endDate); }
+    if (amount !== undefined) { fields.push('amount = ?'); vals.push(amount); }
+    if (taxRate !== undefined) { fields.push('tax_rate = ?'); vals.push(taxRate); }
+    if (description !== undefined) { fields.push('description = ?'); vals.push(description); }
+    if (status !== undefined) { fields.push('status = ?'); vals.push(status); }
+    if (fields.length === 0) throw createError('No fields to update', 400);
+
     const result = await query(
-        `UPDATE recurring_invoices SET
-            customer_id = ?, customer_name = ?, frequency = ?,
-            next_date = ?, end_date = ?, amount = ?,
-            tax_rate = ?, description = ?, status = ?
-         WHERE id = ?`,
-        [
-            customerId, customerName, frequency,
-            nextDate, endDate, amount,
-            taxRate, description, status, id
-        ]
+        `UPDATE recurring_invoices SET ${fields.join(', ')} WHERE id = ?`,
+        [...vals, id]
     );
 
     if (result.affectedRows === 0) {
