@@ -314,7 +314,11 @@ export function EnhancedTable<T extends { id: string }>({
                   </DataTable.Title>
                 </DataTable.Header>
 
-                <ScrollView showsVerticalScrollIndicator={false} style={styles.tableBodyScroll}>
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  style={styles.tableBodyScroll}
+                  contentContainerStyle={{ width: '100%' }}
+                >
                   {data.map((item, index) => (
                     <DataTable.Row
                       key={item.id}
@@ -431,6 +435,8 @@ const styles = StyleSheet.create({
   },
   tableBodyScroll: {
     // fills remaining space — let flex handle height
+    width: '100%',
+    alignSelf: 'stretch',
   },
   tableRow: {
     borderBottomWidth: 1,
