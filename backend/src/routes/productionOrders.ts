@@ -149,7 +149,7 @@ router.post('/', authenticate, validateBody(productionOrderSchema), asyncHandler
         notes,
     } = req.body;
 
-    await query(
+    const result = await query(
         `INSERT INTO production_orders (
             order_number, product_name, item_id, quantity,
             unit, planned_date, completion_date, status,
@@ -165,7 +165,7 @@ router.post('/', authenticate, validateBody(productionOrderSchema), asyncHandler
     res.status(201).json({
         success: true,
         message: 'Production order created successfully',
-        data: { orderNumber }
+        data: { id: result.insertId, orderNumber }
     });
 }));
 

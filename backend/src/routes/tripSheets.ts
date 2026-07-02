@@ -161,7 +161,7 @@ router.post('/', authenticate, validateBody(tripSheetSchema), asyncHandler(async
         status,
     } = req.body;
 
-    await query(
+    const result = await query(
         `INSERT INTO trip_sheets (
             trip_number, vehicle_number, driver_name, driver_phone,
             from_location, to_location, departure_date, return_date,
@@ -177,7 +177,7 @@ router.post('/', authenticate, validateBody(tripSheetSchema), asyncHandler(async
     res.status(201).json({
         success: true,
         message: 'Trip sheet created successfully',
-        data: { tripNumber }
+        data: { id: result.insertId, tripNumber }
     });
 }));
 

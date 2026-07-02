@@ -153,7 +153,7 @@ router.post('/', authenticate, validateBody(projectSchema), asyncHandler(async (
         description,
     } = req.body;
 
-    await query(
+    const result = await query(
         `INSERT INTO projects (
             project_number, project_name, customer_id, customer_name,
             start_date, end_date, budget, billed_amount,
@@ -169,7 +169,7 @@ router.post('/', authenticate, validateBody(projectSchema), asyncHandler(async (
     res.status(201).json({
         success: true,
         message: 'Project created successfully',
-        data: { projectNumber }
+        data: { id: result.insertId, projectNumber }
     });
 }));
 

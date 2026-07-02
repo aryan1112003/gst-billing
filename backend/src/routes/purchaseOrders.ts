@@ -153,7 +153,7 @@ router.post('/', authenticate, validateBody(purchaseOrderSchema), asyncHandler(a
         notes,
     } = req.body;
 
-    await query(
+    const result = await query(
         `INSERT INTO purchase_orders (
             po_number, vendor_id, vendor_name, order_date,
             expected_delivery, status, subtotal, tax_amount,
@@ -169,7 +169,7 @@ router.post('/', authenticate, validateBody(purchaseOrderSchema), asyncHandler(a
     res.status(201).json({
         success: true,
         message: 'Purchase order created successfully',
-        data: { poNumber }
+        data: { id: result.insertId, poNumber }
     });
 }));
 

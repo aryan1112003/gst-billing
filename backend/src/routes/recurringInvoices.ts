@@ -153,7 +153,7 @@ router.post('/', authenticate, validateBody(recurringInvoiceSchema), asyncHandle
         status,
     } = req.body;
 
-    await query(
+    const result = await query(
         `INSERT INTO recurring_invoices (
             recurring_number, customer_id, customer_name, frequency,
             next_date, end_date, amount, tax_rate,
@@ -169,7 +169,7 @@ router.post('/', authenticate, validateBody(recurringInvoiceSchema), asyncHandle
     res.status(201).json({
         success: true,
         message: 'Recurring invoice created successfully',
-        data: { recurringNumber }
+        data: { id: result.insertId, recurringNumber }
     });
 }));
 

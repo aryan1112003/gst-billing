@@ -136,7 +136,7 @@ router.post('/', authenticate, validateBody(vehicleSchema), asyncHandler(async (
         status,
     } = req.body;
 
-    await query(
+    const result = await query(
         `INSERT INTO vehicles (
             vehicle_number, vehicle_type, make, model,
             year, color, registration_date, insurance_expiry,
@@ -152,7 +152,7 @@ router.post('/', authenticate, validateBody(vehicleSchema), asyncHandler(async (
     res.status(201).json({
         success: true,
         message: 'Vehicle created successfully',
-        data: { vehicleNumber }
+        data: { id: result.insertId, vehicleNumber }
     });
 }));
 

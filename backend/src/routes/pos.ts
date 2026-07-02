@@ -157,7 +157,7 @@ router.post('/', authenticate, validateBody(posSaleSchema), asyncHandler(async (
         status,
     } = req.body;
 
-    await query(
+    const result = await query(
         `INSERT INTO pos_sales (
             sale_number, customer_id, customer_name, sale_date,
             items_json, subtotal, tax_amount, discount,
@@ -173,7 +173,7 @@ router.post('/', authenticate, validateBody(posSaleSchema), asyncHandler(async (
     res.status(201).json({
         success: true,
         message: 'POS sale created successfully',
-        data: { saleNumber }
+        data: { id: result.insertId, saleNumber }
     });
 }));
 

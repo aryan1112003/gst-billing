@@ -165,7 +165,7 @@ router.post('/', authenticate, validateBody(shipmentSchema), asyncHandler(async 
         status,
     } = req.body;
 
-    await query(
+    const result = await query(
         `INSERT INTO customs_shipments (
             shipment_number, type, party_name, country,
             port, bill_of_lading, shipment_date, clearance_date,
@@ -183,7 +183,7 @@ router.post('/', authenticate, validateBody(shipmentSchema), asyncHandler(async 
     res.status(201).json({
         success: true,
         message: 'Customs shipment created successfully',
-        data: { shipmentNumber }
+        data: { id: result.insertId, shipmentNumber }
     });
 }));
 

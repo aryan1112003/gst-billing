@@ -153,7 +153,7 @@ router.post('/', authenticate, validateBody(timeEntrySchema), asyncHandler(async
         hourlyRate,
     } = req.body;
 
-    await query(
+    const result = await query(
         `INSERT INTO time_entries (
             entry_number, customer_id, customer_name, project_name,
             work_date, hours, description, billable,
@@ -169,7 +169,7 @@ router.post('/', authenticate, validateBody(timeEntrySchema), asyncHandler(async
     res.status(201).json({
         success: true,
         message: 'Time entry created successfully',
-        data: { entryNumber }
+        data: { id: result.insertId, entryNumber }
     });
 }));
 
