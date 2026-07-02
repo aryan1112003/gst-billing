@@ -293,6 +293,20 @@ export function EnhancedTable<T extends { id: string }>({
             style={styles.desktopTableContainer}
             onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width - 32)}
           >
+            {searchable && (
+              <Searchbar
+                placeholder="Search..."
+                onChangeText={handleSearch}
+                value={searchQuery}
+                style={[
+                  styles.desktopSearchbar,
+                  { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc' }
+                ]}
+                inputStyle={{ color: themeColors.text.primary }}
+                iconColor={themeColors.text.muted}
+                placeholderTextColor={themeColors.text.muted}
+              />
+            )}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -424,6 +438,12 @@ const styles = StyleSheet.create({
   desktopTableContainer: {
     flex: 1,
     padding: 16,
+  },
+  desktopSearchbar: {
+    marginBottom: 12,
+    maxWidth: 360,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   horizontalScroll: {
     flex: 1,
