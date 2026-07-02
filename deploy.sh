@@ -45,11 +45,14 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# Install only production dependencies
-npm install --omit=dev
+# Install dependencies (dev deps needed for the TypeScript build)
+npm install
 
 # Build TypeScript → dist/
 npm run build
+
+# Drop dev dependencies now that dist/ is built
+npm prune --omit=dev
 
 # Ensure logs directory exists
 mkdir -p logs
