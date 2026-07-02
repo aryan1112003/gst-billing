@@ -45,10 +45,9 @@ export function EnhancedTable<T extends { id: string }>({
     return columns.length * MIN_COL_WIDTH + ACTIONS_WIDTH + 32;
   }, [columns.length]);
 
-  // Cap how wide columns can stretch on large screens so cells don't balloon with empty space
-  const tableMaxWidth = useMemo(() => {
-    return columns.length * 260 + ACTIONS_WIDTH + 32;
-  }, [columns.length]);
+  // Cap how wide a single column can stretch so cells don't balloon with empty space,
+  // while the table itself still fills the full available width
+  const COL_MAX_WIDTH = 320;
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -292,7 +291,6 @@ export function EnhancedTable<T extends { id: string }>({
                   backgroundColor: isDarkMode ? themeColors.surface.primary : '#FFFFFF',
                   borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
                   width: '100%',
-                  maxWidth: tableMaxWidth,
                 }
               ]}>
                 <DataTable.Header style={[
@@ -302,7 +300,7 @@ export function EnhancedTable<T extends { id: string }>({
                   {columns.map((column) => (
                     <DataTable.Title
                       key={String(column.key)}
-                      style={{ flex: 1, minWidth: MIN_COL_WIDTH }}
+                      style={{ flex: 1, minWidth: MIN_COL_WIDTH, maxWidth: COL_MAX_WIDTH }}
                       textStyle={[styles.tableHeaderText, { color: '#FFFFFF' }]}
                     >
                       {column.label.toUpperCase()}
@@ -334,7 +332,7 @@ export function EnhancedTable<T extends { id: string }>({
                         const value = item[column.key];
                         const displayValue = column.render ? column.render(value, item) : String(value ?? '');
                         return (
-                          <DataTable.Cell key={String(column.key)} style={{ flex: 1, minWidth: MIN_COL_WIDTH }}>
+                          <DataTable.Cell key={String(column.key)} style={{ flex: 1, minWidth: MIN_COL_WIDTH, maxWidth: COL_MAX_WIDTH }}>
                             {displayValue && displayValue !== 'undefined' ? (
                               typeof displayValue === 'object' ? displayValue : (
                                 <Text style={[styles.tableCellText, { color: themeColors.text.primary }]} numberOfLines={1}>
