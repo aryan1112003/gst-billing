@@ -93,18 +93,23 @@ export const LandingNav: React.FC<LandingNavProps> = ({ currentPage = 'home' }) 
                     </View>
                 )}
 
-                {/* Mobile Menu Button */}
+                {/* Mobile Header Actions: Login + Menu Button */}
                 {isMobile && (
-                    <TouchableOpacity
-                        style={styles.mobileMenuButton}
-                        onPress={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    >
-                        <Ionicons
-                            name={mobileMenuOpen ? 'close' : 'menu'}
-                            size={26}
-                            color="#191919"
-                        />
-                    </TouchableOpacity>
+                    <View style={styles.mobileHeaderActions}>
+                        <TouchableOpacity style={styles.mobileHeaderLoginButton} onPress={handleLogin}>
+                            <Text style={styles.mobileHeaderLoginButtonText}>Login</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.mobileMenuButton}
+                            onPress={() => setMobileMenuOpen(!mobileMenuOpen)}
+                        >
+                            <Ionicons
+                                name={mobileMenuOpen ? 'close' : 'menu'}
+                                size={26}
+                                color="#191919"
+                            />
+                        </TouchableOpacity>
+                    </View>
                 )}
             </View>
 
@@ -138,12 +143,6 @@ export const LandingNav: React.FC<LandingNavProps> = ({ currentPage = 'home' }) 
                         ))}
 
                         <View style={styles.mobileNavActions}>
-                            <TouchableOpacity
-                                style={styles.mobileLoginButton}
-                                onPress={handleLogin}
-                            >
-                                <Text style={styles.mobileLoginButtonText}>Login</Text>
-                            </TouchableOpacity>
                             <TouchableOpacity
                                 style={styles.mobileSignupButton}
                                 onPress={handleSignup}
@@ -262,6 +261,23 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontWeight: '700',
     },
+    mobileHeaderActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    mobileHeaderLoginButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        borderWidth: 1.5,
+        borderColor: '#CACCCF',
+    },
+    mobileHeaderLoginButtonText: {
+        fontSize: 14,
+        color: '#43474B',
+        fontWeight: '600',
+    },
     mobileMenuButton: {
         padding: 6,
     },
@@ -297,19 +313,6 @@ const styles = StyleSheet.create({
     mobileNavActions: {
         padding: 20,
         gap: 12,
-    },
-    mobileLoginButton: {
-        paddingVertical: 13,
-        paddingHorizontal: 20,
-        borderRadius: 10,
-        borderWidth: 1.5,
-        borderColor: '#CACCCF',
-        alignItems: 'center',
-    },
-    mobileLoginButtonText: {
-        fontSize: 16,
-        color: '#43474B',
-        fontWeight: '600',
     },
     mobileSignupButton: {
         paddingVertical: 13,
