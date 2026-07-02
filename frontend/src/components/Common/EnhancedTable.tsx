@@ -45,6 +45,11 @@ export function EnhancedTable<T extends { id: string }>({
     return columns.length * MIN_COL_WIDTH + ACTIONS_WIDTH + 32;
   }, [columns.length]);
 
+  // Cap how wide columns can stretch on large screens so cells don't balloon with empty space
+  const tableMaxWidth = useMemo(() => {
+    return columns.length * 260 + ACTIONS_WIDTH + 32;
+  }, [columns.length]);
+
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     if (onSearch) onSearch(query);
@@ -287,6 +292,7 @@ export function EnhancedTable<T extends { id: string }>({
                   backgroundColor: isDarkMode ? themeColors.surface.primary : '#FFFFFF',
                   borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
                   width: '100%',
+                  maxWidth: tableMaxWidth,
                 }
               ]}>
                 <DataTable.Header style={[
