@@ -32,6 +32,7 @@ export function EnhancedTable<T extends { id: string }>({
   const { isMobile, isTablet } = useResponsive();
   const [searchQuery, setSearchQuery] = useState('');
   const [menuVisible, setMenuVisible] = useState<{ [key: string]: boolean }>({});
+  const [containerWidth, setContainerWidth] = useState(0);
 
   // Cards on phones, table on tablet+
   const showCards = isMobile;
@@ -45,9 +46,19 @@ export function EnhancedTable<T extends { id: string }>({
     return columns.length * MIN_COL_WIDTH + ACTIONS_WIDTH + 32;
   }, [columns.length]);
 
-  // Cap how wide a single column can stretch so cells don't balloon with empty space,
-  // while the table itself still fills the full available width
+  // Cap how wide a single column can stretch so cells don't balloon with empty space
   const COL_MAX_WIDTH = 320;
+  const tableMaxWidth = useMemo(() => {
+    return columns.length * COL_MAX_WIDTH + ACTIONS_WIDTH + 32;
+  }, [columns.length]);
+
+  // react-native-paper's DataTable.Header/Row don't reliably inherit a stretched
+  // width from their parent, so measure the real available space and pass an
+  // explicit pixel width all the way down instead of relying on flex/stretch.
+  const tableRenderWidth = useMemo(() => {
+    const available = containerWidth || tableMinWidth;
+    return Math.max(tableMinWidth, Math.min(available, tableMaxWidth));
+  }, [containerWidth, tableMinWidth, tableMaxWidth]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -278,24 +289,27 @@ export function EnhancedTable<T extends { id: string }>({
           </ScrollView>
         ) : (
           /* ── TABLET / DESKTOP: data table with optional horizontal scroll ── */
-          <View style={styles.desktopTableContainer}>
+          <View
+            style={styles.desktopTableContainer}
+            onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width - 32)}
+          >
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               style={styles.horizontalScroll}
-              contentContainerStyle={{ minWidth: tableMinWidth }}
+              contentContainerStyle={{ width: tableRenderWidth }}
             >
               <DataTable style={[
                 styles.table,
                 {
                   backgroundColor: isDarkMode ? themeColors.surface.primary : '#FFFFFF',
                   borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
-                  width: '100%',
+                  width: tableRenderWidth,
                 }
               ]}>
                 <DataTable.Header style={[
                   styles.tableHeaderRow,
-                  { backgroundColor: isDarkMode ? '#1E293B' : themeColors.neutral[900] }
+                  { width: tableRenderWidth, backgroundColor: isDarkMode ? '#1E293B' : themeColors.neutral[900] }
                 ]}>
                   {columns.map((column) => (
                     <DataTable.Title
@@ -317,7 +331,7 @@ export function EnhancedTable<T extends { id: string }>({
                 <ScrollView
                   showsVerticalScrollIndicator={false}
                   style={styles.tableBodyScroll}
-                  contentContainerStyle={{ width: '100%' }}
+                  contentContainerStyle={{ width: tableRenderWidth }}
                 >
                   {data.map((item, index) => (
                     <DataTable.Row
@@ -325,6 +339,7 @@ export function EnhancedTable<T extends { id: string }>({
                       style={[
                         styles.tableRow,
                         {
+                          width: tableRenderWidth,
                           backgroundColor: index % 2 === 0
                             ? (isDarkMode ? themeColors.surface.primary : '#FFFFFF')
                             : (isDarkMode ? themeColors.surface.secondary : themeColors.neutral[50]),
