@@ -5,7 +5,7 @@
 :: =============================================================
 
 set SERVER=98.90.13.118
-set SSH_USER=ec2-user
+set SSH_USER=ubuntu
 set PEM_FILE=C:\path\to\your-key.pem
 
 echo.
@@ -24,7 +24,7 @@ if not exist "%PEM_FILE%" (
 
 :: -- Step 1: Copy backend .env to server (first time only)
 echo [1/3] Copying backend\.env to server...
-scp -i "%PEM_FILE%" -o StrictHostKeyChecking=no "backend\.env" %SSH_USER%@%SERVER%:/home/ec2-user/gst-billing/backend/.env 2>nul
+scp -i "%PEM_FILE%" -o StrictHostKeyChecking=no "backend\.env" %SSH_USER%@%SERVER%:/home/ubuntu/gst-billing/backend/.env 2>nul
 if errorlevel 1 (
   echo   Note: .env copy may have failed - server directory might not exist yet.
   echo   It will be copied after first git clone - continuing...
@@ -32,11 +32,11 @@ if errorlevel 1 (
 
 :: -- Step 2: Upload and run deploy.sh on server
 echo [2/3] Uploading deploy script...
-scp -i "%PEM_FILE%" -o StrictHostKeyChecking=no "deploy.sh" %SSH_USER%@%SERVER%:/home/ec2-user/deploy.sh
+scp -i "%PEM_FILE%" -o StrictHostKeyChecking=no "deploy.sh" %SSH_USER%@%SERVER%:/home/ubuntu/deploy.sh
 
 echo [3/3] Running deployment on server...
 echo.
-ssh -i "%PEM_FILE%" -o StrictHostKeyChecking=no %SSH_USER%@%SERVER% "chmod +x /home/ec2-user/deploy.sh && bash /home/ec2-user/deploy.sh"
+ssh -i "%PEM_FILE%" -o StrictHostKeyChecking=no %SSH_USER%@%SERVER% "chmod +x /home/ubuntu/deploy.sh && bash /home/ubuntu/deploy.sh"
 
 echo.
 echo ======================================================

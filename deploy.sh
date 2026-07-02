@@ -6,7 +6,7 @@
 # =============================================================
 set -e
 
-APP_DIR="/home/ec2-user/gst-billing"
+APP_DIR="/home/ubuntu/gst-billing"
 SERVER_IP="98.90.13.118"
 REPO_URL="https://github.com/aryan1112003/gst-billing.git"
 
