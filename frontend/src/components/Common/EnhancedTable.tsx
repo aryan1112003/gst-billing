@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import {
   DataTable,
   Searchbar,
@@ -30,7 +30,6 @@ export function EnhancedTable<T extends { id: string }>({
 }: ExtendedEnhancedTableProps<T>) {
   const { colors: themeColors, isDarkMode } = useTheme();
   const { isMobile, isTablet } = useResponsive();
-  const { width: screenWidth } = useWindowDimensions();
   const [searchQuery, setSearchQuery] = useState('');
   const [menuVisible, setMenuVisible] = useState<{ [key: string]: boolean }>({});
 
@@ -287,7 +286,7 @@ export function EnhancedTable<T extends { id: string }>({
                 {
                   backgroundColor: isDarkMode ? themeColors.surface.primary : '#FFFFFF',
                   borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
-                  width: Math.max(tableMinWidth, screenWidth - (isMobile ? 0 : 40)),
+                  width: '100%',
                 }
               ]}>
                 <DataTable.Header style={[
