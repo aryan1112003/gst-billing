@@ -315,11 +315,13 @@ router.delete('/:id', authorize(['admin']), asyncHandler(async (req: AuthRequest
     throw createError('Item not found', 404);
   }
 
-  // Check if item is used in invoices (item_consume table in mawebtec_lms)
-  const invoiceCheck = await query('SELECT COUNT(*) as count FROM item_consume WHERE item_id = ?', [id]);
-
-  if (parseInt(invoiceCheck.rows[0].count) > 0) {
-    throw createError('Cannot delete item that is used in invoices', 400);
+  // Check if item is used in invoices (invoice_items table may not exist on all deployments)
+  const tableCheck = await query(`SELECT to_regclass('invoice_items') as tbl`);
+  if (tableCheck.rows[0]?.tbl) {
+    const invoiceCheck = await query('SELECT COUNT(*) as count FROM invoice_items WHERE item_id = ?', [id]);
+    if (parseInt(invoiceCheck.rows[0].count) > 0) {
+      throw createError('Cannot delete item that is used in invoices', 400);
+    }
   }
 
   await query('DELETE FROM items WHERE id = ?', [id]);
